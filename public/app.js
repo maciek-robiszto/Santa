@@ -31,3 +31,5 @@ for (const ta of document.querySelectorAll('textarea[data-counter]')) {
   ta.addEventListener('input', update);
   update();
 }
+
+document.querySelector('[data-print]')?.addEventListener('click', () => window.print());

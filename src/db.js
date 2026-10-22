@@ -83,6 +83,8 @@ const MIGRATIONS = [
   );
   CREATE INDEX audit_event ON audit_log(event_id, created_at);
   `,
+  // v2: local meetups only – meeting place instead of shipping.
+  `ALTER TABLE events ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
 ];
 
 export function openDb(file) {

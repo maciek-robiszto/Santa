@@ -71,7 +71,7 @@ test('admin logs in and creates event', async () => {
   assert.equal(bad.status, 401);
   const r = await admin.post('/login', { email: 'admin@test.pl', password: 'admin-password-1' });
   assert.equal(r.status, 303);
-  const c = await admin.post('/admin/events', { name: 'Mikołajki 2026', description: 'Test', budget: '100 zł', shipping: '1' });
+  const c = await admin.post('/admin/events', { name: 'Mikołajki 2026', description: 'Test', budget: '100 zł', location: 'Hackerspace' });
   assert.equal(c.status, 303);
   eventId = Number(c.location.split('/').pop());
   invite = store.eventById(eventId).invite_token;
@@ -83,7 +83,7 @@ test('participants join via invite and fill profiles', async () => {
     const r = await c.post(`/join/${invite}`, { name, email: `${name.toLowerCase()}@test.pl`, password: 'haslo-testowe-1', consent: '1' });
     assert.equal(r.status, 303, r.text);
     const p = await c.post(`/events/${eventId}/profile`, {
-      about: `Jestem ${name} <script>alert(1)</script>`, passions: 'druk 3D', wishes: `sekret-${name}`, avoid: '', social: 'github.com/x', shipping: 'Paczkomat KRA01',
+      about: `Jestem ${name} <script>alert(1)</script>`, passions: 'druk 3D', wishes: `sekret-${name}`, avoid: '', social: 'github.com/x',
     });
     assert.equal(p.status, 303);
     people.push({ name, c });
@@ -130,7 +130,6 @@ test('database holds no plaintext secrets', () => {
   store.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   const raw = fs.readFileSync(path.join(dir, 'santa.db')).toString('latin1');
   assert.ok(!raw.includes('sekret-'), 'profile text encrypted');
-  assert.ok(!raw.includes('Paczkomat'), 'address encrypted');
   for (const row of store.db.prepare('SELECT recipient_enc FROM assignments').all()) assert.match(row.recipient_enc, /^v1:/);
 });
 
@@ -145,6 +144,17 @@ test('anonymous messages reach the right person', async () => {
   assert.ok(sent.some((m) => m.to === `${recName.toLowerCase()}@test.pl` && !m.text.includes('PLA')));
   await rec.c.post(`/events/${eventId}/messages`, { to: 'santa', body: 'PETG!' });
   assert.ok((await ala.c.get(`/events/${eventId}`)).text.includes('PETG!'));
+});
+
+test('gift label shows only the recipient', async () => {
+  const [ala] = people;
+  const page = (await ala.c.get(`/events/${eventId}`)).text;
+  const recName = page.match(/class="recipient-name">([^<]+)</)[1];
+  const label = await ala.c.get(`/events/${eventId}/label`);
+  assert.equal(label.status, 200);
+  assert.match(label.text, new RegExp(`class="tag-name">${recName}<`));
+  assert.ok(!label.text.includes('class="tag-name">Ala<'));
+  assert.equal((await new Client().get(`/events/${eventId}/label`)).status, 303);
 });
 
 test('break-glass reveal needs password and is public', async () => {

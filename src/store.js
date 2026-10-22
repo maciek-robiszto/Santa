@@ -8,14 +8,13 @@ export const PROFILE_FIELDS = [
   { key: 'wishes', label: 'Co by mnie ucieszyło', max: 1500, hint: 'Pomysły, materiały, narzędzia, rzeczy do ulepszenia warsztatu.' },
   { key: 'avoid', label: 'Czego nie chcę', max: 1000, hint: 'Alergie, rzeczy, których masz za dużo, czego nie lubisz.' },
   { key: 'social', label: 'Link do social mediów / portfolio', max: 300, url: true, hint: 'np. Instagram, Printables, GitHub, YouTube (https://…)' },
-  { key: 'shipping', label: 'Adres do wysyłki / paczkomat', max: 500, shippingOnly: true, hint: 'Widoczny tylko dla Twojego Mikołaja.' },
 ];
 
 export const GIFT_STATUSES = {
   none: 'Jeszcze nic',
   making: 'W produkcji 🛠️',
   ready: 'Gotowy 🎁',
-  sent: 'Wysłany / przekazany 🚚',
+  sent: 'Wręczony 🤝',
 };
 
 const now = () => Date.now();
@@ -94,17 +93,17 @@ export function createStore(db, cipher) {
 
     // ---------- events ----------
     createEvent(data) {
-      const r = q(`INSERT INTO events (name, description, budget, signup_deadline, exchange_date, shipping,
+      const r = q(`INSERT INTO events (name, description, budget, signup_deadline, exchange_date, location,
         reveal_santas, invite_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.shipping ? 1 : 0, data.reveal_santas ? 1 : 0, randomToken(18), now());
+          data.location, data.reveal_santas ? 1 : 0, randomToken(18), now());
       return Number(r.lastInsertRowid);
     },
     updateEvent(id, data) {
       q(`UPDATE events SET name = ?, description = ?, budget = ?, signup_deadline = ?, exchange_date = ?,
-        shipping = ?, reveal_santas = ? WHERE id = ?`)
+        location = ?, reveal_santas = ? WHERE id = ?`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.shipping ? 1 : 0, data.reveal_santas ? 1 : 0, id);
+          data.location, data.reveal_santas ? 1 : 0, id);
     },
     rotateInvite: (id) => q('UPDATE events SET invite_token = ? WHERE id = ?').run(randomToken(18), id),
     setEventStatus: (id, status) => q('UPDATE events SET status = ? WHERE id = ?').run(status, id),

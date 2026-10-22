@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import * as v from '../validate.js';
 import { PROFILE_FIELDS, GIFT_STATUSES } from '../store.js';
-import { eventPage } from '../views/pages.js';
+import { eventPage, giftLabelPage } from '../views/pages.js';
 import { requireUser, notFound, tooMany } from './helpers.js';
 
 export function eventRoutes({ store, config, mailer, limiter }) {
@@ -56,12 +56,18 @@ export function eventRoutes({ store, config, mailer, limiter }) {
     res.page(req.event.name, eventPage(buildContext(req, res)));
   });
 
+  r.get('/events/:id/label', requireUser, load, (req, res) => {
+    const recipientId = req.event.status !== 'open' && store.recipientIdOf(req.event.id, req.me.id);
+    const recipient = recipientId && store.participantById(recipientId);
+    if (!recipient) return notFound(res);
+    res.page('Etykieta na prezent', giftLabelPage({ event: req.event, recipient, siteName: config.siteName }));
+  });
+
   r.post('/events/:id/profile', requireUser, load, (req, res) => {
     if (req.event.status === 'finished') return res.redirect(303, `/events/${req.event.id}`);
     const profile = {};
     const errors = {};
     for (const f of PROFILE_FIELDS) {
-      if (f.shippingOnly && !req.event.shipping) continue;
       const result = f.url ? v.url(req.body[f.key], f.max) : v.text(req.body[f.key], f.max);
       profile[f.key] = result.value;
       if (result.error) errors[f.key] = result.error;

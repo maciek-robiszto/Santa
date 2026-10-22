@@ -5,11 +5,13 @@ Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makersk
 ## Funkcje
 
 - **Zaproszenie linkiem** – organizator tworzy wydarzenie i wysyła link; uczestnicy zakładają konto (e-mail + hasło).
-- **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio, opcjonalnie adres/paczkomat (gdy prezenty są wysyłane).
+- **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio.
+- **Spotkanie na żywo** – miejsce i data wymiany w opisie wydarzenia; bez adresów do wysyłki (mniej danych osobowych).
 - **Losowanie** – kryptograficznie losowy jeden cykl (A→B→C→…→A): nikt nie losuje siebie, brak par „na krzyż”. Obsługa **wykluczeń** (np. partnerzy).
 - **Koperta** – każdy widzi tylko swoją osobę i jej profil.
 - **Anonimowe wiadomości** – Mikołaj może pytać obdarowanego, ten może odpowiadać, nie wiedząc, z kim pisze.
-- **Status prezentu** (w produkcji / gotowy / wysłany) widoczny dla obdarowanego.
+- **Status prezentu** (w produkcji / gotowy / wręczony) widoczny dla obdarowanego.
+- **Etykieta na prezent do druku** – duża zawieszka z otworem na sznurek i dwie naklejki „Dla: …” (bez imienia Mikołaja), żeby na spotkaniu każdy znalazł swoją paczkę.
 - **Opcjonalne ujawnienie Mikołajów** po zakończeniu zabawy.
 - **Powiadomienia e-mail** (opcjonalne SMTP): losowanie, nowa wiadomość, reset hasła.
 - Responsywność (mobile first), działa bez JavaScriptu.
@@ -20,7 +22,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makersk
 |---|---|
 | Ktoś podejrzy, kto kogo wylosował | Odbiorca w tabeli `assignments` jest szyfrowany **AES‑256‑GCM** (klucz poza bazą, AAD wiąże szyfrogram z wierszem). Admin **nie ma** widoku listy par. |
 | Admin „po cichu” sprawdza pary | Jedyna droga to **awaryjny podgląd**: jedna para na raz, wymaga hasła i powodu, jest **publicznie widoczny w dzienniku** każdego uczestnika + e‑mail do wszystkich. Wygenerowanie linku resetu hasła dla uczestnika (czyli możliwość wejścia na jego konto) też jest publicznie logowane. Anulowanie losowania – również. |
-| Wyciek bazy / kopii | Profile, adresy, pary i wiadomości są szyfrowane. Hasła: **scrypt** (N=2¹⁵). Sesje i tokeny resetu przechowywane jako SHA‑256. `secure_delete` w SQLite. |
+| Wyciek bazy / kopii | Profile, pary i wiadomości są szyfrowane. Hasła: **scrypt** (N=2¹⁵). Sesje i tokeny resetu przechowywane jako SHA‑256. `secure_delete` w SQLite. |
 | Przejęcie sesji / CSRF / XSS | Ciasteczka `__Host-`, `HttpOnly`, `Secure`, `SameSite`; token CSRF + sprawdzanie `Origin`; ścisły CSP (`script-src 'self'`), auto‑escaping szablonów, linki tylko `http(s)` z `rel="noopener noreferrer nofollow ugc"`. |
 | Brute force | Limity prób logowania (IP + e‑mail), rejestracji, resetu, wiadomości, podglądu awaryjnego; stały czas odpowiedzi dla nieistniejących kont. |
 | Inne | HSTS, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin` (tokeny z URL nie wyciekają), `Cache-Control: no-store`, brak logów dostępu w Caddy, kontener read‑only bez uprawnień. |

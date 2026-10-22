@@ -9,11 +9,11 @@ function eventForm({ csrf, action, values = {}, errors = {}, submit }) {
     ${input({ label: 'Nazwa', name: 'name', value: values.name, required: true, max: 100, error: errors.name, hint: 'np. Makerskie Mikołajki 2026' })}
     ${textarea({ label: 'Opis / zasady', name: 'description', value: values.description, max: 3000, rows: 4, hint: 'Widoczny dla uczestników i na stronie zaproszenia.' })}
     ${input({ label: 'Budżet', name: 'budget', value: values.budget, max: 60, hint: 'np. do 100 zł albo „własnoręcznie”' })}
+    ${input({ label: 'Miejsce spotkania', name: 'location', value: values.location, max: 200, hint: 'np. robisz.to Warszawa, ul. …, godz. 18:00' })}
     <div class="row-2">
       ${input({ label: 'Zapisy do', name: 'signup_deadline', type: 'date', value: values.signup_deadline, error: errors.signup_deadline })}
       ${input({ label: 'Wymiana prezentów', name: 'exchange_date', type: 'date', value: values.exchange_date, error: errors.exchange_date })}
     </div>
-    ${checkbox({ label: 'Prezenty wysyłamy (pokaż pole na adres / paczkomat)', name: 'shipping', checked: values.shipping })}
     ${checkbox({ label: 'Po zakończeniu pokaż każdemu, kto był jego Mikołajem', name: 'reveal_santas', checked: values.reveal_santas })}
     <button class="btn btn-primary">${submit}</button>
   </form>`;

@@ -10,10 +10,10 @@ function parseEvent(body) {
     name: v.line(body.name, 100, { required: true, label: 'Nazwa' }),
     description: v.text(body.description, 3000),
     budget: v.line(body.budget, 60),
+    location: v.line(body.location, 200),
     signup_deadline: v.date(body.signup_deadline),
     exchange_date: v.date(body.exchange_date),
   });
-  result.values.shipping = body.shipping === '1';
   result.values.reveal_santas = body.reveal_santas === '1';
   return result;
 }

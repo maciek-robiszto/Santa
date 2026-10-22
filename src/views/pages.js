@@ -24,7 +24,7 @@ const eventMeta = (e) => html`<dl class="meta">
   ${e.budget ? html`<div><dt>Budżet</dt><dd>${e.budget}</dd></div>` : ''}
   ${e.signup_deadline ? html`<div><dt>Zapisy do</dt><dd>${fmtDate(e.signup_deadline)}</dd></div>` : ''}
   ${e.exchange_date ? html`<div><dt>Wymiana prezentów</dt><dd>${fmtDate(e.exchange_date)}</dd></div>` : ''}
-  <div><dt>Forma</dt><dd>${e.shipping ? 'Wysyłka paczek' : 'Wymiana na żywo'}</dd></div>
+  ${e.location ? html`<div><dt>Miejsce</dt><dd>${e.location}</dd></div>` : ''}
 </dl>`;
 
 export function homeAnon() {
@@ -139,9 +139,9 @@ export function dashboard({ events, user }) {
   </div>`}`;
 }
 
-function profileView(profile, { showShipping }) {
+function profileView(profile) {
   const social = safeUrl(profile.social);
-  const rows = PROFILE_FIELDS.filter((f) => f.key !== 'social' && (!f.shippingOnly || showShipping) && profile[f.key]);
+  const rows = PROFILE_FIELDS.filter((f) => f.key !== 'social' && profile[f.key]);
   return html`
     ${rows.length ? rows.map((f) => html`<div class="profile-row"><h4>${f.label}</h4><p>${multiline(profile[f.key])}</p></div>`)
       : html`<p class="muted">Ta osoba jeszcze nic o sobie nie napisała. Zadaj jej anonimowe pytanie poniżej 👇</p>`}
@@ -193,7 +193,9 @@ export function eventPage(ctx) {
         <span class="hint">Upewnij się, że nikt nie patrzy Ci przez ramię 👀</span></summary>
       <div class="envelope-body">
         <div class="dotted dotted-sm"><p class="recipient-name">${recipient.name}</p></div>
-        ${profileView(recipientProfile, { showShipping: event.shipping })}
+        ${profileView(recipientProfile)}
+        <p class="label-cta"><a class="btn" href="/events/${event.id}/label">🏷️ Etykieta na prezent</a>
+          <span class="hint">Wydrukuj, wytnij i przyczep do paczki – na spotkaniu każdy od razu znajdzie swój prezent.</span></p>
         <form method="post" action="/events/${event.id}/gift-status" class="gift-status">
           ${csrfField(csrf)}
           <label for="gs">Status prezentu (widzi go obdarowana osoba):</label>
@@ -222,11 +224,11 @@ export function eventPage(ctx) {
     <p class="muted">Zobaczy go tylko osoba, która Cię wylosuje (i admin w sytuacji awaryjnej). Możesz go zmieniać także po losowaniu.</p>
     ${canEditProfile ? html`<form method="post" action="/events/${event.id}/profile">
       ${csrfField(csrf)}
-      ${PROFILE_FIELDS.filter((f) => !f.shippingOnly || event.shipping).map((f) => f.url
+      ${PROFILE_FIELDS.map((f) => f.url
         ? input({ label: f.label, name: f.key, type: 'url', value: profile[f.key], max: f.max, hint: f.hint, error: errors[f.key] })
-        : textarea({ label: f.label, name: f.key, value: profile[f.key], max: f.max, hint: f.hint, error: errors[f.key], rows: f.key === 'shipping' ? 2 : 4 }))}
+        : textarea({ label: f.label, name: f.key, value: profile[f.key], max: f.max, hint: f.hint, error: errors[f.key] }))}
       <button class="btn btn-primary">Zapisz profil</button>
-    </form>` : profileView(profile, { showShipping: event.shipping })}
+    </form>` : profileView(profile)}
   </section>
 
   <section class="grid-2">
@@ -287,5 +289,37 @@ export function errorPage(status, message) {
     <p class="big-code">${status}</p>
     <h1>${message}</h1>
     <p><a class="btn" href="/">Wróć na start</a></p>
+  </section>`;
+}
+
+function giftTag({ event, recipient, siteName, variant }) {
+  return html`<article class="gift-tag gift-tag-${variant}"><div class="tag-inner">
+    ${variant === 'tag' ? html`<span class="tag-hole" aria-hidden="true"></span>` : ''}
+    <div class="tag-body">
+      <p class="tag-event">${event.name || siteName}</p>
+      <p class="tag-for">Dla</p>
+      <p class="tag-name">${recipient.name}</p>
+      <p class="tag-from">od Tajemniczego Mikołaja 🎅</p>
+      ${event.exchange_date && variant === 'tag' ? html`<p class="tag-date">Nie otwierać przed ${fmtDate(event.exchange_date)}</p>` : ''}
+    </div>
+  </div></article>`;
+}
+
+export function giftLabelPage({ event, recipient, siteName }) {
+  return html`
+  <div class="no-print">
+    <p><a href="/events/${event.id}#przydzial">← Wróć do wydarzenia</a></p>
+    <p class="kicker">Do druku</p>
+    <h1>Etykieta na prezent</h1>
+    <p class="lead">Wydrukuj, wytnij po przerywanej linii i przyczep do paczki. Duża zawieszka ma otwór na sznurek,
+    małe naklejki możesz przykleić taśmą. Twojego imienia tu nie ma 🤫</p>
+    <p><button class="btn btn-primary" type="button" data-print>Drukuj</button></p>
+  </div>
+  <section class="label-sheet" aria-label="Podgląd wydruku">
+    ${giftTag({ event, recipient, siteName, variant: 'tag' })}
+    <div class="sticker-row">
+      ${giftTag({ event, recipient, siteName, variant: 'sticker' })}
+      ${giftTag({ event, recipient, siteName, variant: 'sticker' })}
+    </div>
   </section>`;
 }
