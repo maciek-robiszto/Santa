@@ -7,6 +7,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makersk
 - **Zaproszenie linkiem** – organizator tworzy wydarzenie i wysyła link; uczestnicy zakładają konto (e-mail + hasło).
 - **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio.
 - **Spotkanie na żywo** – miejsce i data wymiany w opisie wydarzenia; bez adresów do wysyłki (mniej danych osobowych).
+- **Termin zapisów i automatyczne losowanie** – o północy po dniu „Zapisy do” aplikacja sama losuje pary i wysyła maile do wszystkich. Dwa dni przed terminem osoby z pustym profilem dostają przypomnienie. Jeśli losowanie się nie uda (np. mniej niż 3 osoby), admin dostaje maila i losuje ręcznie. Można też losować ręcznie w dowolnym momencie.
 - **Losowanie** – kryptograficznie losowy jeden cykl (A→B→C→…→A): nikt nie losuje siebie, brak par „na krzyż”. Obsługa **wykluczeń** (np. partnerzy).
 - **Koperta** – każdy widzi tylko swoją osobę i jej profil.
 - **Anonimowe wiadomości** – Mikołaj może pytać obdarowanego, ten może odpowiadać, nie wiedząc, z kim pisze.
@@ -53,6 +54,18 @@ docker compose exec app node --disable-warning=ExperimentalWarning scripts/backu
 
 Kopia jest spójna (`VACUUM INTO`). Bez `ENCRYPTION_KEY` dane szyfrowane są nieczytelne – klucz przechowuj osobno (np. w menedżerze haseł).
 
+## Przetestuj u siebie (demo)
+
+```bash
+npm install
+npm run demo   # pusta baza → admin + wydarzenie + 8 uczestników z profilami
+npm run dev    # http://localhost:3000
+```
+
+Loginy: `admin@demo.pl`, `ala@demo.pl` … `henryk@demo.pl`, hasło `mikolajki-demo`. Admina i uczestnika najlepiej otworzyć w osobnych oknach (np. zwykłe + prywatne). Reset demo: usuń katalog `./data`.
+
+Test na prawdziwej grupie wymaga wdrożenia na serwer (sekcja wyżej) – wtedy wyślij ludziom link z zaproszeniem.
+
 ## Rozwój lokalny
 
 Wymagany Node.js ≥ 22.13 (używa wbudowanego `node:sqlite`, brak natywnych zależności).
@@ -61,7 +74,7 @@ Wymagany Node.js ≥ 22.13 (używa wbudowanego `node:sqlite`, brak natywnych zal
 npm install
 ADMIN_PASSWORD='haslo-admina-123' npm run admin:create -- --email admin@local --name Admin
 npm run dev     # http://localhost:3000 (klucz deweloperski tworzony automatycznie w ./data)
-npm test
+npm test        # w tym symulacja grupy 30 osób: zapisy, przypomnienia, auto-losowanie, maile
 ```
 
 ## Wygląd

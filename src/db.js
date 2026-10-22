@@ -85,6 +85,9 @@ const MIGRATIONS = [
   `,
   // v2: local meetups only – meeting place instead of shipping.
   `ALTER TABLE events ADD COLUMN location TEXT NOT NULL DEFAULT '';`,
+  // v3: automatic draw after the signup deadline + one reminder before it.
+  `ALTER TABLE events ADD COLUMN auto_draw INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE events ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 export function openDb(file) {

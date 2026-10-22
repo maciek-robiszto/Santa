@@ -2,6 +2,7 @@ import { html, multiline, safeUrl } from '../html.js';
 import { csrfField, fmtDate, fmtDateTime, statusTag } from './layout.js';
 import { input, textarea } from './forms.js';
 import { PROFILE_FIELDS, GIFT_STATUSES } from '../store.js';
+import { signupClosed } from '../deadline.js';
 
 export const AUDIT_LABELS = {
   'event.create': 'Utworzono wydarzenie',
@@ -16,13 +17,15 @@ export const AUDIT_LABELS = {
   'exclusion.remove': 'Usunięto wykluczenie',
   'draw.run': 'Przeprowadzono losowanie',
   'draw.reset': 'Losowanie zostało anulowane',
+  'draw.auto': 'Automatyczne losowanie po terminie zapisów',
+  'draw.auto_failed': 'Automatyczne losowanie nie powiodło się',
   'admin.reveal': '⚠️ Admin awaryjnie podejrzał przydział',
   'admin.password_reset': 'Admin wygenerował link resetu hasła',
 };
 
 const eventMeta = (e) => html`<dl class="meta">
   ${e.budget ? html`<div><dt>Budżet</dt><dd>${e.budget}</dd></div>` : ''}
-  ${e.signup_deadline ? html`<div><dt>Zapisy do</dt><dd>${fmtDate(e.signup_deadline)}</dd></div>` : ''}
+  ${e.signup_deadline ? html`<div><dt>Zapisy do</dt><dd>${fmtDate(e.signup_deadline)}${e.auto_draw && e.status === 'open' ? html` <span class="muted">· potem losowanie</span>` : ''}</dd></div>` : ''}
   ${e.exchange_date ? html`<div><dt>Wymiana prezentów</dt><dd>${fmtDate(e.exchange_date)}</dd></div>` : ''}
   ${e.location ? html`<div><dt>Miejsce</dt><dd>${e.location}</dd></div>` : ''}
 </dl>`;
@@ -89,7 +92,7 @@ export function resetPage({ csrf, token, error }) {
 }
 
 export function joinPage({ csrf, event, user, values = {}, errors = {} }) {
-  const closed = event.status !== 'open';
+  const closed = signupClosed(event);
   return html`<section class="grid-2">
     <div class="card">
       <p class="kicker">zaproszenie</p>
@@ -98,7 +101,7 @@ export function joinPage({ csrf, event, user, values = {}, errors = {} }) {
       ${eventMeta(event)}
     </div>
     <div class="card">
-      ${closed ? html`<h2>Zapisy zamknięte</h2><p>Losowanie już się odbyło. Jeśli to pomyłka, odezwij się do organizatora.</p>`
+      ${closed ? html`<h2>Zapisy zamknięte</h2><p>${event.status === 'open' ? 'Termin zapisów minął.' : 'Losowanie już się odbyło.'} Jeśli to pomyłka, odezwij się do organizatora.</p>`
       : user ? html`
         <h2>Dołączasz jako ${user.name}</h2>
         <form method="post" action="/join/${event.invite_token}">${csrfField(csrf)}

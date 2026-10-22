@@ -3,6 +3,7 @@ import * as v from '../validate.js';
 import { verifyPassword } from '../crypto.js';
 import { DrawError } from '../draw.js';
 import { adminIndex, adminEvent, adminReveal, adminResetLink } from '../views/admin.js';
+import { announceDraw } from '../notify.js';
 import { requireAdmin, notFound, tooMany, collectErrors } from './helpers.js';
 
 function parseEvent(body) {
@@ -15,6 +16,11 @@ function parseEvent(body) {
     exchange_date: v.date(body.exchange_date),
   });
   result.values.reveal_santas = body.reveal_santas === '1';
+  result.values.auto_draw = body.auto_draw === '1';
+  if (result.values.auto_draw && !result.values.signup_deadline && !result.errors.signup_deadline) {
+    result.errors.signup_deadline = 'Ustaw termin zapisów, żeby losowanie mogło odbyć się automatycznie';
+    result.ok = false;
+  }
   return result;
 }
 
@@ -32,6 +38,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       participants: store.participants(event.id),
       exclusions: store.exclusions(event.id),
       log: store.auditLog(event.id, false),
+      mailEnabled: mailer.enabled,
       ...extra,
     }), { status });
   };
@@ -44,7 +51,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
   });
 
   r.get('/', (req, res) => {
-    res.page('Panel admina', adminIndex({ csrf: res.locals.csrf, events: store.allEvents(), values: {} }), { wide: true });
+    res.page('Panel admina', adminIndex({ csrf: res.locals.csrf, events: store.allEvents(), values: { auto_draw: true } }), { wide: true });
   });
 
   r.post('/events', (req, res) => {
@@ -118,13 +125,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       throw err;
     }
     store.audit({ eventId: req.event.id, actor: req.user, action: 'draw.run', detail: `${count} osób`, isPublic: true });
-    for (const p of store.participants(req.event.id)) {
-      mailer.send({
-        to: p.email,
-        subject: `${config.siteName}: losowanie zakończone 🎁`,
-        text: `Cześć ${p.name}!\n\nLosowanie w „${req.event.name}” się odbyło. Zaloguj się, żeby zobaczyć, kogo obdarowujesz:\n${config.origin}/events/${req.event.id}\n`,
-      });
-    }
+    announceDraw({ store, mailer, config }, req.event);
     res.flash('ok', `Wylosowano pary dla ${count} osób. Nikt poza zainteresowanymi ich nie zna 🤫`);
     res.redirect(303, `/admin/events/${req.event.id}`);
   });

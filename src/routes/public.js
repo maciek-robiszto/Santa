@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { hashPassword, verifyPassword, dummyVerify } from '../crypto.js';
 import * as v from '../validate.js';
+import { signupClosed } from '../deadline.js';
 import { homeAnon, loginPage, joinPage, forgotPage, resetPage, dashboard, accountPage } from '../views/pages.js';
 import { startSession, requireUser, notFound, tooMany, collectErrors } from './helpers.js';
 
@@ -22,7 +23,7 @@ export function publicRoutes(ctx) {
   r.post('/login', async (req, res) => {
     const email = String(req.body.email ?? '').trim().toLowerCase().slice(0, 200);
     const password = String(req.body.password ?? '').slice(0, 200);
-    if (!limiter.hit(`login-ip:${req.ip}`, 30, 15 * 60_000) || !limiter.hit(`login-email:${email}`, 8, 15 * 60_000)) {
+    if (!limiter.hit(`login-ip:${req.ip}`, 150, 15 * 60_000) || !limiter.hit(`login-email:${email}`, 8, 15 * 60_000)) {
       return tooMany(res);
     }
     const user = store.userByEmail(email);
@@ -52,11 +53,11 @@ export function publicRoutes(ctx) {
   r.post('/join/:token', async (req, res) => {
     const event = store.eventByInvite(req.params.token);
     if (!event) return notFound(res);
-    if (event.status !== 'open') return res.redirect(303, `/join/${event.invite_token}`);
+    if (signupClosed(event)) return res.redirect(303, `/join/${event.invite_token}`);
 
     let user = req.user;
     if (!user) {
-      if (!limiter.hit(`register:${req.ip}`, 10, 60 * 60_000)) return tooMany(res);
+      if (!limiter.hit(`register:${req.ip}`, 100, 60 * 60_000)) return tooMany(res);
       const { errors, values, ok } = collectErrors({
         name: v.line(req.body.name, 60, { required: true, label: 'Imię' }),
         email: v.email(req.body.email),

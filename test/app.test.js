@@ -1,54 +1,21 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
-import crypto from 'node:crypto';
-import { loadConfig } from '../src/config.js';
-import { openDb } from '../src/db.js';
-import { createCipher, hashPassword } from '../src/crypto.js';
-import { createStore } from '../src/store.js';
-import { createApp } from '../src/app.js';
+import { hashPassword } from '../src/crypto.js';
+import { startTestApp } from './helpers.js';
 
-let server, base, store, dir;
-const sent = [];
-
+let t, store, dir, sent, admin;
 before(async () => {
-  dir = fs.mkdtempSync(path.join(os.tmpdir(), 'santa-test-'));
-  const config = loadConfig({ DATA_DIR: dir, ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), APP_URL: 'http://localhost:0' });
-  store = createStore(openDb(config.dbFile), createCipher(config.encryptionKey));
-  const mailer = { enabled: true, send: async (m) => { sent.push(m); } };
-  const app = createApp({ config, store, mailer });
-  await new Promise((r) => { server = app.listen(0, r); });
-  base = `http://127.0.0.1:${server.address().port}`;
-  config.origin = base; // links in mails / Origin check
+  t = await startTestApp();
+  ({ store, dir, sent } = t);
+  admin = t.client();
   store.createUser({ email: 'admin@test.pl', name: 'Admin', passwordHash: await hashPassword('admin-password-1'), isAdmin: true });
 });
-after(() => { server.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+after(() => t.close());
 
-class Client {
-  cookies = new Map();
-  async req(method, url, form) {
-    const headers = { cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ') };
-    let body;
-    if (form) {
-      headers['content-type'] = 'application/x-www-form-urlencoded';
-      body = new URLSearchParams({ _csrf: this.cookies.get('csrf') ?? '', ...form }).toString();
-    }
-    const res = await fetch(base + url, { method, headers, body, redirect: 'manual' });
-    for (const c of res.headers.getSetCookie()) {
-      const [pair] = c.split(';');
-      const i = pair.indexOf('=');
-      const k = pair.slice(0, i), val = pair.slice(i + 1);
-      if (!val || /Expires=Thu, 01 Jan 1970/i.test(c)) this.cookies.delete(k); else this.cookies.set(k, val);
-    }
-    return { status: res.status, location: res.headers.get('location'), text: await res.text(), headers: res.headers };
-  }
-  get(url) { return this.req('GET', url); }
-  async post(url, form) { if (!this.cookies.has('csrf')) await this.get('/'); return this.req('POST', url, form); }
-}
+const Client = class { constructor() { return t.client(); } };
 
-const admin = new Client();
 const people = [];
 let eventId, invite;
 

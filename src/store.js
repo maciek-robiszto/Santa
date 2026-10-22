@@ -94,18 +94,22 @@ export function createStore(db, cipher) {
     // ---------- events ----------
     createEvent(data) {
       const r = q(`INSERT INTO events (name, description, budget, signup_deadline, exchange_date, location,
-        reveal_santas, invite_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        reveal_santas, auto_draw, invite_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.location, data.reveal_santas ? 1 : 0, randomToken(18), now());
+          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, randomToken(18), now());
       return Number(r.lastInsertRowid);
     },
     updateEvent(id, data) {
       q(`UPDATE events SET name = ?, description = ?, budget = ?, signup_deadline = ?, exchange_date = ?,
-        location = ?, reveal_santas = ? WHERE id = ?`)
+        location = ?, reveal_santas = ?, auto_draw = ?, reminder_sent = 0 WHERE id = ?`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.location, data.reveal_santas ? 1 : 0, id);
+          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, id);
     },
     rotateInvite: (id) => q('UPDATE events SET invite_token = ? WHERE id = ?').run(randomToken(18), id),
+    openEventsWithDeadline: () => q("SELECT * FROM events WHERE status = 'open' AND signup_deadline IS NOT NULL").all(),
+    setAutoDraw: (id, on) => q('UPDATE events SET auto_draw = ? WHERE id = ?').run(on ? 1 : 0, id),
+    markReminderSent: (id) => q('UPDATE events SET reminder_sent = 1 WHERE id = ?').run(id),
+    admins: () => q('SELECT * FROM users WHERE is_admin = 1').all(),
     setEventStatus: (id, status) => q('UPDATE events SET status = ? WHERE id = ?').run(status, id),
     deleteEvent: (id) => q('DELETE FROM events WHERE id = ?').run(id),
     eventById: (id) => q('SELECT * FROM events WHERE id = ?').get(id),

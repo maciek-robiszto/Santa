@@ -13,6 +13,7 @@
     "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
     "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
     "admin:create": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
+    "demo": "node --disable-warning=ExperimentalWarning scripts/demo.js",
     "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
     "gen-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\""
   },

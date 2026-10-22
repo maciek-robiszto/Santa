@@ -1,5 +1,6 @@
 import { html } from '../html.js';
 import { csrfField, fmtDate, fmtDateTime, statusTag } from './layout.js';
+import { deadlineEnd } from '../deadline.js';
 import { input, textarea, checkbox } from './forms.js';
 import { AUDIT_LABELS } from './pages.js';
 
@@ -14,6 +15,7 @@ function eventForm({ csrf, action, values = {}, errors = {}, submit }) {
       ${input({ label: 'Zapisy do', name: 'signup_deadline', type: 'date', value: values.signup_deadline, error: errors.signup_deadline })}
       ${input({ label: 'Wymiana prezentów', name: 'exchange_date', type: 'date', value: values.exchange_date, error: errors.exchange_date })}
     </div>
+    ${checkbox({ label: 'Losuj automatycznie po terminie zapisów i wyślij maile', name: 'auto_draw', checked: values.auto_draw, hint: 'O północy po dniu „Zapisy do”. Dwa dni wcześniej osoby z pustym profilem dostaną przypomnienie.' })}
     ${checkbox({ label: 'Po zakończeniu pokaż każdemu, kto był jego Mikołajem', name: 'reveal_santas', checked: values.reveal_santas })}
     <button class="btn btn-primary">${submit}</button>
   </form>`;
@@ -37,7 +39,7 @@ export function adminIndex({ csrf, events, values, errors }) {
   </div>`;
 }
 
-export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, log, errors = {}, values }) {
+export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, log, errors = {}, values, mailEnabled }) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const incomplete = participants.filter((p) => !p.profile_complete).length;
   const open = event.status === 'open';
@@ -61,6 +63,9 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
     ${errors.draw ? html`<p class="flash flash-error">${errors.draw}</p>` : ''}
     ${open ? html`
       <p>Uczestników: <b>${participants.length}</b>${incomplete ? html` · <span class="warn">${incomplete} bez uzupełnionego profilu</span>` : ''}</p>
+      ${event.auto_draw && event.signup_deadline ? html`<p>⏰ Automatyczne losowanie: <b>${fmtDateTime(deadlineEnd(event.signup_deadline))}</b>. Możesz też wylosować wcześniej ręcznie.</p>`
+        : html`<p class="muted">Losowanie automatyczne jest wyłączone – kliknij, gdy wszyscy się zapiszą.</p>`}
+      ${mailEnabled ? '' : html`<p class="warn">E-maile są wyłączone (brak SMTP) – daj znać uczestnikom samodzielnie, że mogą zajrzeć na stronę.</p>`}
       <p class="muted">Po losowaniu zapisy zostają zamknięte. Wynik jest szyfrowany – nikt nie zobaczy pełnej listy par.</p>
       <form method="post" action="/admin/events/${event.id}/draw" data-confirm="Rozpocząć losowanie dla ${participants.length} osób?">
         ${csrfField(csrf)}<button class="btn btn-primary" ${participants.length < 3 ? html`disabled` : ''}>Losuj!</button>
