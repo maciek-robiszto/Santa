@@ -14,12 +14,10 @@ export const fmtDate = (iso) => {
 export const csrfField = (csrf) => html`<input type="hidden" name="_csrf" value="${csrf}">`;
 
 export const LOGO = raw(`<svg class="logo-mark" viewBox="0 0 48 48" aria-hidden="true" focusable="false">
-  <rect x="6" y="18" width="36" height="26" rx="2" fill="var(--accent)" stroke="currentColor" stroke-width="3"/>
-  <rect x="3" y="11" width="42" height="9" rx="2" fill="var(--yellow)" stroke="currentColor" stroke-width="3"/>
-  <path d="M24 11v33" stroke="currentColor" stroke-width="3"/>
-  <circle cx="24" cy="31" r="6" fill="var(--paper)" stroke="currentColor" stroke-width="3"/>
-  <circle cx="24" cy="31" r="2" fill="currentColor"/>
-  <path d="M24 11c-3-7-12-8-11-2 1 3 7 3 11 2zm0 0c3-7 12-8 11-2-1 3-7 3-11 2z" fill="var(--paper)" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+  <rect x="7" y="20" width="34" height="23" fill="var(--yellow)"/>
+  <rect x="4" y="13" width="40" height="8" fill="var(--teal)"/>
+  <rect x="21" y="13" width="6" height="30" fill="var(--ink)"/>
+  <path d="M24 13c-3-7-12-8-11-2 1 3 7 3 11 2zm0 0c3-7 12-8 11-2-1 3-7 3-11 2z" fill="none" stroke="var(--ink)" stroke-width="3" stroke-linejoin="round"/>
 </svg>`);
 
 const STATUS = {
@@ -36,7 +34,7 @@ export function layout({ title, body, user, csrf, flash, siteName, wide = false 
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="light">
 <title>${title ? `${title} · ` : ''}${siteName}</title>
 <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/static/style.css">

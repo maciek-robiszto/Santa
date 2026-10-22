@@ -31,19 +31,21 @@ export function homeAnon() {
   return html`
   <section class="hero">
     <div>
-      <p class="kicker">// edycja świąteczna</p>
-      <h1>Makerskie<br><span class="hl">Mikołajki</span></h1>
-      <p class="lead">Losujesz osobę, <b>robisz</b> dla niej prezent (albo coś wyszukujesz z sercem), wręczasz. Proste.
+      <p class="kicker">Edycja świąteczna</p>
+      <h1>Makerskie Mikołajki</h1>
+      <p class="lead">Losujesz osobę, <b>robisz</b> dla niej prezent (albo wyszukujesz coś z sercem), wręczasz. Proste.
       Bez arkuszy, bez „ups, wylosowałem siebie” i bez podglądania.</p>
       <p><a class="btn btn-primary" href="/login">Zaloguj się</a></p>
       <p class="hint">Masz link z zaproszeniem? Otwórz go, żeby dołączyć.</p>
     </div>
-    <ol class="steps">
-      <li><b>Dołącz</b> przez link od organizatora.</li>
-      <li><b>Opisz się</b> – pasje, projekty, co lubisz, czego nie.</li>
-      <li><b>Losowanie</b> – automatyczne, szyfrowane, bez par „na krzyż”.</li>
-      <li><b>Działaj</b> – zobacz profil swojej osoby i pytaj ją anonimowo.</li>
-    </ol>
+    <div class="dotted">
+      <ol class="steps">
+        <li><b>Dołącz</b> przez link od organizatora.</li>
+        <li><b>Opisz się</b> – pasje, projekty, co lubisz, czego nie.</li>
+        <li><b>Losowanie</b> – automatyczne, szyfrowane, bez par „na krzyż”.</li>
+        <li><b>Działaj</b> – zobacz profil swojej osoby i pytaj ją anonimowo.</li>
+      </ol>
+    </div>
   </section>`;
 }
 
@@ -90,7 +92,7 @@ export function joinPage({ csrf, event, user, values = {}, errors = {} }) {
   const closed = event.status !== 'open';
   return html`<section class="grid-2">
     <div class="card">
-      <p class="kicker">// zaproszenie</p>
+      <p class="kicker">zaproszenie</p>
       <h1>${event.name}</h1>
       ${event.description ? html`<p>${multiline(event.description)}</p>` : ''}
       ${eventMeta(event)}
@@ -175,7 +177,7 @@ export function eventPage(ctx) {
   return html`
   <div class="page-head">
     <div>
-      <p class="kicker">// ${event.status === 'open' ? 'zapisy trwają' : event.status === 'drawn' ? 'czas działać' : 'po wszystkim'}</p>
+      <p class="kicker">${event.status === 'open' ? 'zapisy trwają' : event.status === 'drawn' ? 'czas działać' : 'po wszystkim'}</p>
       <h1>${event.name}</h1>
     </div>
     ${statusTag(event.status)}
@@ -187,10 +189,10 @@ export function eventPage(ctx) {
   <section class="card card-accent reveal" id="przydzial">
     <h2>🎯 Twoja osoba</h2>
     <details class="envelope">
-      <summary><span class="btn btn-primary">Otwórz kopertę</span>
+      <summary><span class="btn btn-primary"><span class="when-closed">Otwórz kopertę</span><span class="when-open">Zamknij kopertę</span></span>
         <span class="hint">Upewnij się, że nikt nie patrzy Ci przez ramię 👀</span></summary>
       <div class="envelope-body">
-        <p class="recipient-name">${recipient.name}</p>
+        <div class="dotted dotted-sm"><p class="recipient-name">${recipient.name}</p></div>
         ${profileView(recipientProfile, { showShipping: event.shipping })}
         <form method="post" action="/events/${event.id}/gift-status" class="gift-status">
           ${csrfField(csrf)}

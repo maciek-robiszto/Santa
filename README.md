@@ -12,7 +12,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makersk
 - **Status prezentu** (w produkcji / gotowy / wysłany) widoczny dla obdarowanego.
 - **Opcjonalne ujawnienie Mikołajów** po zakończeniu zabawy.
 - **Powiadomienia e-mail** (opcjonalne SMTP): losowanie, nowa wiadomość, reset hasła.
-- Ciemny motyw, responsywność, działa bez JavaScriptu.
+- Responsywność (mobile first), działa bez JavaScriptu.
 
 ## Model bezpieczeństwa
 
@@ -64,7 +64,7 @@ npm test
 
 ## Wygląd
 
-Styl „warsztatowy” (neo‑brutalizm, siatka maty do cięcia). Kolory są zmiennymi CSS na górze `public/style.css` (`--accent`, `--yellow`, `--paper`, …) – podmień je, żeby dopasować do identyfikacji robisz.to. Nazwę strony ustawisz zmienną `SITE_NAME`.
+Styl w duchu robisz.to: biel i jasnoszare sekcje, płaskie żółte bloki ze strzałką, morski akcent, kropkowany raster, krój Poppins (hostowany lokalnie, licencja OFL – `public/fonts`). Kolory są zmiennymi CSS na górze `public/style.css` (`--yellow`, `--teal`, `--soft`, …). Nazwę strony ustawisz zmienną `SITE_NAME`.
 
 ## Struktura
 
