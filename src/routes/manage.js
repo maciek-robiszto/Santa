@@ -2,9 +2,9 @@ import { Router } from 'express';
 import * as v from '../validate.js';
 import { verifyPassword } from '../crypto.js';
 import { DrawError } from '../draw.js';
-import { adminIndex, adminEvent, adminReveal, adminResetLink } from '../views/admin.js';
+import { manageIndex, manageEvent, adminReveal, adminResetLink } from '../views/manage.js';
 import { announceDraw } from '../notify.js';
-import { requireAdmin, notFound, tooMany, collectErrors } from './helpers.js';
+import { requireUser, notFound, tooMany, collectErrors, canManage, canCreateGroups } from './helpers.js';
 
 function parseEvent(body) {
   const result = collectErrors({
@@ -24,14 +24,14 @@ function parseEvent(body) {
   return result;
 }
 
-export function adminRoutes({ store, config, mailer, limiter }) {
+export function manageRoutes({ store, config, mailer, limiter }) {
   const r = Router();
-  r.use(requireAdmin);
+  r.use(requireUser);
 
   const inviteUrl = (e) => `${config.origin}/join/${e.invite_token}`;
   const renderEvent = (req, res, extra = {}, status = 200) => {
     const event = store.eventById(req.event.id);
-    res.page(event.name, adminEvent({
+    res.page(event.name, manageEvent({
       csrf: res.locals.csrf,
       event,
       inviteUrl: inviteUrl(event),
@@ -39,6 +39,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       exclusions: store.exclusions(event.id),
       log: store.auditLog(event.id, false),
       mailEnabled: mailer.enabled,
+      viewer: req.user,
       ...extra,
     }), { status });
   };
@@ -46,21 +47,40 @@ export function adminRoutes({ store, config, mailer, limiter }) {
   r.param('eventId', (req, res, next, raw) => {
     const id = v.id(raw);
     req.event = id && store.eventById(id);
-    if (!req.event) return notFound(res);
+    // 404 (not 403) so group ids of other organizers are not confirmed.
+    if (!canManage(req.user, req.event)) return notFound(res);
     next();
   });
 
-  r.get('/', (req, res) => {
-    res.page('Panel admina', adminIndex({ csrf: res.locals.csrf, events: store.allEvents(), values: { auto_draw: true } }), { wide: true });
-  });
+  const renderIndex = (req, res, values = { auto_draw: true, join_self: true }, errors = {}, status = 200) => {
+    res.page('Organizuj', manageIndex({
+      csrf: res.locals.csrf,
+      mine: store.eventsOwnedBy(req.user.id),
+      all: req.user.is_admin ? store.allEvents() : null,
+      canCreate: canCreateGroups(config, req.user),
+      values, errors,
+    }), { status });
+  };
+
+  r.get('/', (req, res) => renderIndex(req, res));
 
   r.post('/events', (req, res) => {
+    if (!canCreateGroups(config, req.user)) return notFound(res);
+    if (!limiter.hit(`create-group:${req.user.id}`, 10, 24 * 3600_000)) return tooMany(res);
     const { errors, values, ok } = parseEvent(req.body);
-    if (!ok) return res.page('Panel admina', adminIndex({ csrf: res.locals.csrf, events: store.allEvents(), values, errors }), { status: 422 });
-    const id = store.createEvent(values);
+    values.join_self = req.body.join_self === '1';
+    if (!req.user.is_admin && store.activeOwnedCount(req.user.id) >= config.maxGroupsPerUser) {
+      errors.name = `Masz już ${config.maxGroupsPerUser} aktywnych grup – zakończ lub usuń którąś.`;
+    }
+    if (!ok || errors.name) return renderIndex(req, res, values, errors, 422);
+    const id = store.createEvent({ ...values, owner_user_id: req.user.id });
     store.audit({ eventId: id, actor: req.user, action: 'event.create', detail: values.name });
-    res.flash('ok', 'Wydarzenie utworzone. Skopiuj link z zaproszeniem i wyślij ekipie!');
-    res.redirect(303, `/admin/events/${id}`);
+    if (values.join_self) {
+      store.joinEvent(id, req.user.id);
+      store.audit({ eventId: id, actor: req.user, action: 'participant.join', detail: req.user.name, isPublic: true });
+    }
+    res.flash('ok', 'Grupa gotowa! Skopiuj link z zaproszeniem i wyślij znajomym.');
+    res.redirect(303, `/manage/events/${id}`);
   });
 
   r.get('/events/:eventId', (req, res) => renderEvent(req, res));
@@ -71,14 +91,14 @@ export function adminRoutes({ store, config, mailer, limiter }) {
     store.updateEvent(req.event.id, values);
     store.audit({ eventId: req.event.id, actor: req.user, action: 'event.update', isPublic: true });
     res.flash('ok', 'Zapisano ustawienia.');
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/invite', (req, res) => {
     store.rotateInvite(req.event.id);
     store.audit({ eventId: req.event.id, actor: req.user, action: 'event.invite_rotate' });
     res.flash('ok', 'Nowy link gotowy. Stary już nie działa.');
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/participants/:pid/remove', (req, res) => {
@@ -91,7 +111,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       store.audit({ eventId: req.event.id, actor: req.user, action: 'participant.remove', detail: p.name, isPublic: true });
       res.flash('ok', `Usunięto ${p.name}.`);
     }
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/exclusions', (req, res) => {
@@ -103,7 +123,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       store.addExclusion(req.event.id, a.id, b.id);
       store.audit({ eventId: req.event.id, actor: req.user, action: 'exclusion.add', detail: `${a.name} ↔ ${b.name}` });
     }
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/exclusions/remove', (req, res) => {
@@ -111,7 +131,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       store.removeExclusion(req.event.id, v.id(req.body.a), v.id(req.body.b));
       store.audit({ eventId: req.event.id, actor: req.user, action: 'exclusion.remove' });
     }
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/draw', (req, res) => {
@@ -127,19 +147,19 @@ export function adminRoutes({ store, config, mailer, limiter }) {
     store.audit({ eventId: req.event.id, actor: req.user, action: 'draw.run', detail: `${count} osób`, isPublic: true });
     announceDraw({ store, mailer, config }, req.event);
     res.flash('ok', `Wylosowano pary dla ${count} osób. Nikt poza zainteresowanymi ich nie zna 🤫`);
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/reset', (req, res) => {
     const reason = v.line(req.body.reason, 300, { required: true, label: 'Powód' });
     if (reason.error) {
       res.flash('error', reason.error);
-      return res.redirect(303, `/admin/events/${req.event.id}`);
+      return res.redirect(303, `/manage/events/${req.event.id}`);
     }
     store.resetDraw(req.event.id);
     store.audit({ eventId: req.event.id, actor: req.user, action: 'draw.reset', detail: reason.value, isPublic: true });
     res.flash('ok', 'Losowanie anulowane, zapisy znów otwarte.');
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/finish', (req, res) => {
@@ -147,7 +167,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       store.setEventStatus(req.event.id, 'finished');
       store.audit({ eventId: req.event.id, actor: req.user, action: 'event.finish', isPublic: true });
     }
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   r.post('/events/:eventId/reopen', (req, res) => {
@@ -155,7 +175,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
       store.setEventStatus(req.event.id, 'drawn');
       store.audit({ eventId: req.event.id, actor: req.user, action: 'event.reopen', isPublic: true });
     }
-    res.redirect(303, `/admin/events/${req.event.id}`);
+    res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
   // Break-glass: reveals exactly one pair, requires the admin password and a
@@ -187,12 +207,15 @@ export function adminRoutes({ store, config, mailer, limiter }) {
     res.page('Awaryjny podgląd', adminReveal({ event, subject, mode, other }));
   });
 
+  // Only the site superadmin: a reset link lets you log in as that person,
+  // which would expose their pairs in every group they belong to.
   r.post('/users/:userId/reset-link', (req, res) => {
+    if (!req.user.is_admin) return notFound(res);
     const user = store.userById(v.id(req.params.userId));
     if (!user) return notFound(res);
     if (user.is_admin && user.id !== req.user.id) {
       res.flash('error', 'Nie można generować linków resetu dla innych adminów.');
-      return res.redirect(303, '/admin');
+      return res.redirect(303, '/manage');
     }
     const token = store.createPasswordReset(user.id, 24);
     // Logging in as someone would reveal their pair, so this is public too.
@@ -210,7 +233,7 @@ export function adminRoutes({ store, config, mailer, limiter }) {
     store.deleteEvent(req.event.id);
     store.db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
     res.flash('ok', 'Wydarzenie i jego dane zostały usunięte.');
-    res.redirect(303, '/admin');
+    res.redirect(303, '/manage');
   });
 
   return r;

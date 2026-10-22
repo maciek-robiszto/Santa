@@ -1,10 +1,12 @@
 # 🎁 Makerskie Mikołajki
 
-Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makerskiej.
+Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczności makerskiej, ale każdy może założyć własną grupę i zaprosić znajomych.
 
 ## Funkcje
 
-- **Zaproszenie linkiem** – organizator tworzy wydarzenie i wysyła link; uczestnicy zakładają konto (e-mail + hasło).
+- **Samoobsługowe grupy** – każdy zakłada konto, tworzy grupę (np. dla znajomych, pracy, hackerspace’u) i wysyła link z zaproszeniem. Organizator zarządza tylko swoimi grupami i może sam brać udział w losowaniu.
+- **Role** – *uczestnik*; *organizator* (twórca grupy: ustawienia, wykluczenia, losowanie, awaryjny podgląd jego grupy); *superadmin* strony (widzi listę wszystkich grup, może je usuwać, jako jedyny generuje linki resetu hasła). Utworzenie superadmina: `scripts/create-admin.js`.
+- **Zaproszenie linkiem** – uczestnicy zakładają konto (e-mail + hasło) prosto ze strony zaproszenia.
 - **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio.
 - **Spotkanie na żywo** – miejsce i data wymiany w opisie wydarzenia; bez adresów do wysyłki (mniej danych osobowych).
 - **Termin zapisów i automatyczne losowanie** – o północy po dniu „Zapisy do” aplikacja sama losuje pary i wysyła maile do wszystkich. Dwa dni przed terminem osoby z pustym profilem dostają przypomnienie. Jeśli losowanie się nie uda (np. mniej niż 3 osoby), admin dostaje maila i losuje ręcznie. Można też losować ręcznie w dowolnym momencie.
@@ -21,6 +23,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa dla społeczności makersk
 
 | Zagrożenie | Ochrona |
 |---|---|
+| Nadużycia otwartej rejestracji | Limity: rejestracje i logowania na IP, max grup na osobę (`MAX_GROUPS_PER_USER`), max uczestników w grupie; rejestrację lub tworzenie grup można wyłączyć (`OPEN_REGISTRATION`, `GROUP_CREATION`). Organizator nie może generować linków resetu hasła (to dałoby wejście na cudze konto i pary w innych grupach). |
 | Ktoś podejrzy, kto kogo wylosował | Odbiorca w tabeli `assignments` jest szyfrowany **AES‑256‑GCM** (klucz poza bazą, AAD wiąże szyfrogram z wierszem). Admin **nie ma** widoku listy par. |
 | Admin „po cichu” sprawdza pary | Jedyna droga to **awaryjny podgląd**: jedna para na raz, wymaga hasła i powodu, jest **publicznie widoczny w dzienniku** każdego uczestnika + e‑mail do wszystkich. Wygenerowanie linku resetu hasła dla uczestnika (czyli możliwość wejścia na jego konto) też jest publicznie logowane. Anulowanie losowania – również. |
 | Wyciek bazy / kopii | Profile, pary i wiadomości są szyfrowane. Hasła: **scrypt** (N=2¹⁵). Sesje i tokeny resetu przechowywane jako SHA‑256. `secure_delete` w SQLite. |
@@ -44,7 +47,7 @@ docker compose up -d --build
 docker compose exec app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email ty@example.pl --name "Twoje imię"
 ```
 
-Potem zaloguj się na `https://twoja-domena/`, wejdź w **Panel admina** → utwórz wydarzenie → skopiuj link z zaproszeniem.
+Potem zaloguj się na `https://twoja-domena/`, wejdź w **Organizuj** → utwórz grupę → skopiuj link z zaproszeniem. Inni mogą zakładać własne grupy przez **Załóż konto**.
 
 ### Kopie zapasowe
 

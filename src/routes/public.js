@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { hashPassword, verifyPassword, dummyVerify } from '../crypto.js';
 import * as v from '../validate.js';
 import { signupClosed } from '../deadline.js';
-import { homeAnon, loginPage, joinPage, forgotPage, resetPage, dashboard, accountPage } from '../views/pages.js';
+import { homeAnon, loginPage, registerPage, joinPage, forgotPage, resetPage, dashboard, accountPage } from '../views/pages.js';
 import { startSession, requireUser, notFound, tooMany, collectErrors } from './helpers.js';
 
 export function publicRoutes(ctx) {
@@ -42,6 +42,43 @@ export function publicRoutes(ctx) {
     res.redirect(303, '/');
   });
 
+  // ---------- registration ----------
+  async function registerUser(req, res) {
+    if (!limiter.hit(`register:${req.ip}`, 100, 60 * 60_000)) return { limited: true };
+    const { errors, values, ok } = collectErrors({
+      name: v.line(req.body.name, 60, { required: true, label: 'Imię' }),
+      email: v.email(req.body.email),
+      password: v.password(req.body.password),
+    });
+    if (req.body.consent !== '1') errors.consent = 'Potrzebujemy tej zgody, żeby przechowywać Twój profil.';
+    if (ok && !errors.consent && store.userByEmail(values.email)) {
+      errors.email = 'Konto z tym e-mailem już istnieje – zaloguj się.';
+    }
+    if (Object.keys(errors).length) {
+      delete values.password;
+      return { errors, values };
+    }
+    const id = store.createUser({ email: values.email, name: values.name, passwordHash: await hashPassword(values.password) });
+    startSession(ctx, res, id);
+    return { user: store.userById(id) };
+  }
+
+  r.get('/register', (req, res) => {
+    if (!config.openRegistration) return notFound(res);
+    if (req.user) return res.redirect(303, v.safeNext(req.query.next));
+    res.page('Załóż konto', registerPage({ csrf: res.locals.csrf, next: v.safeNext(req.query.next) }));
+  });
+
+  r.post('/register', async (req, res) => {
+    if (!config.openRegistration) return notFound(res);
+    const next = v.safeNext(req.query.next);
+    const created = await registerUser(req, res);
+    if (created.limited) return tooMany(res);
+    if (created.errors) return res.page('Załóż konto', registerPage({ csrf: res.locals.csrf, next, values: created.values, errors: created.errors }), { status: 422 });
+    res.flash('ok', `Witaj, ${created.user.name}!`);
+    res.redirect(303, next);
+  });
+
   // ---------- invitations ----------
   r.get('/join/:token', (req, res) => {
     const event = store.eventByInvite(req.params.token);
@@ -57,26 +94,17 @@ export function publicRoutes(ctx) {
 
     let user = req.user;
     if (!user) {
-      if (!limiter.hit(`register:${req.ip}`, 100, 60 * 60_000)) return tooMany(res);
-      const { errors, values, ok } = collectErrors({
-        name: v.line(req.body.name, 60, { required: true, label: 'Imię' }),
-        email: v.email(req.body.email),
-        password: v.password(req.body.password),
-      });
-      if (req.body.consent !== '1') errors.consent = 'Potrzebujemy tej zgody, żeby przechowywać Twój profil.';
-      if (ok && !errors.consent && store.userByEmail(values.email)) {
-        errors.email = 'Konto z tym e-mailem już istnieje – zaloguj się, a potem otwórz link ponownie.';
-      }
-      if (Object.keys(errors).length) {
-        delete values.password;
-        return res.page(event.name, joinPage({ csrf: res.locals.csrf, event, values, errors }), { status: 422 });
-      }
-      const id = store.createUser({ email: values.email, name: values.name, passwordHash: await hashPassword(values.password) });
-      user = store.userById(id);
-      startSession(ctx, res, id);
+      const created = await registerUser(req, res);
+      if (created.limited) return tooMany(res);
+      if (created.errors) return res.page(event.name, joinPage({ csrf: res.locals.csrf, event, values: created.values, errors: created.errors }), { status: 422 });
+      user = created.user;
     }
 
     if (!store.participantFor(event.id, user.id)) {
+      if (store.participantCount(event.id) >= config.maxParticipants) {
+        res.flash('error', 'Ta grupa jest już pełna.');
+        return res.redirect(303, '/');
+      }
       store.joinEvent(event.id, user.id);
       store.audit({ eventId: event.id, actor: user, action: 'participant.join', detail: user.name, isPublic: true });
     }
@@ -162,6 +190,7 @@ export function publicRoutes(ctx) {
     const errors = {};
     if (!(await verifyPassword(String(req.body.password ?? ''), req.user.password_hash))) errors.delete = 'Nieprawidłowe hasło';
     else if (store.userHasActiveDraw(req.user.id)) errors.delete = 'Bierzesz udział w trwającym losowaniu – poproś organizatora o pomoc, żeby nikt nie został bez prezentu.';
+    else if (store.activeOwnedCount(req.user.id) > 0) errors.delete = 'Organizujesz aktywne grupy – najpierw je zakończ albo usuń.';
     if (Object.keys(errors).length) {
       return res.page('Konto', accountPage({ csrf: res.locals.csrf, user: req.user, errors }), { status: 422 });
     }

@@ -4,10 +4,10 @@ import { deadlineEnd } from '../deadline.js';
 import { input, textarea, checkbox } from './forms.js';
 import { AUDIT_LABELS } from './pages.js';
 
-function eventForm({ csrf, action, values = {}, errors = {}, submit }) {
+function eventForm({ csrf, action, values = {}, errors = {}, submit, create = false }) {
   return html`<form method="post" action="${action}">
     ${csrfField(csrf)}
-    ${input({ label: 'Nazwa', name: 'name', value: values.name, required: true, max: 100, error: errors.name, hint: 'np. Makerskie Mikołajki 2026' })}
+    ${input({ label: 'Nazwa', name: 'name', value: values.name, required: true, max: 100, error: errors.name, hint: 'np. Mikołajki ekipy z hackerspace 2026' })}
     ${textarea({ label: 'Opis / zasady', name: 'description', value: values.description, max: 3000, rows: 4, hint: 'Widoczny dla uczestników i na stronie zaproszenia.' })}
     ${input({ label: 'Budżet', name: 'budget', value: values.budget, max: 60, hint: 'np. do 100 zł albo „własnoręcznie”' })}
     ${input({ label: 'Miejsce spotkania', name: 'location', value: values.location, max: 200, hint: 'np. robisz.to Warszawa, ul. …, godz. 18:00' })}
@@ -17,34 +17,46 @@ function eventForm({ csrf, action, values = {}, errors = {}, submit }) {
     </div>
     ${checkbox({ label: 'Losuj automatycznie po terminie zapisów i wyślij maile', name: 'auto_draw', checked: values.auto_draw, hint: 'O północy po dniu „Zapisy do”. Dwa dni wcześniej osoby z pustym profilem dostaną przypomnienie.' })}
     ${checkbox({ label: 'Po zakończeniu pokaż każdemu, kto był jego Mikołajem', name: 'reveal_santas', checked: values.reveal_santas })}
+    ${create ? checkbox({ label: 'Biorę udział w losowaniu', name: 'join_self', checked: values.join_self, hint: 'Odznacz, jeśli tylko organizujesz.' }) : ''}
     <button class="btn btn-primary">${submit}</button>
   </form>`;
 }
 
-export function adminIndex({ csrf, events, values, errors }) {
+const groupList = (events, { owner = false } = {}) => events.length
+  ? html`<ul class="list">${events.map((e) => html`<li>
+      <a href="/manage/events/${e.id}"><b>${e.name}</b></a> ${statusTag(e.status)}
+      <span class="muted">${e.participant_count} os.${e.exchange_date ? html` · ${fmtDate(e.exchange_date)}` : ''}${owner ? html` · org. ${e.owner_name ?? '—'}` : ''}</span>
+    </li>`)}</ul>`
+  : html`<p class="muted">Nie masz jeszcze żadnej grupy.</p>`;
+
+export function manageIndex({ csrf, mine, all, canCreate, values, errors }) {
   return html`
-  <h1>Panel admina</h1>
+  <p class="kicker">Dla organizatorów</p>
+  <h1>Zorganizuj mikołajki</h1>
+  <p class="lead">Załóż grupę dla znajomych, ekipy z pracy czy hackerspace’u, wyślij im link i gotowe.
+  Losowanie, przypomnienia i maile zrobią się same. Ty też nie zobaczysz, kto kogo wylosował.</p>
   <div class="grid-2">
     <section class="card">
-      <h2>Wydarzenia</h2>
-      ${events.length ? html`<ul class="list">${events.map((e) => html`<li>
-        <a href="/admin/events/${e.id}"><b>${e.name}</b></a> ${statusTag(e.status)}
-        <span class="muted">${e.participant_count} os.${e.exchange_date ? html` · ${fmtDate(e.exchange_date)}` : ''}</span>
-      </li>`)}</ul>` : html`<p class="muted">Brak wydarzeń.</p>`}
+      <h2>Twoje grupy</h2>
+      ${groupList(mine)}
     </section>
-    <section class="card">
-      <h2>Nowe wydarzenie</h2>
-      ${eventForm({ csrf, action: '/admin/events', values, errors, submit: 'Utwórz' })}
-    </section>
-  </div>`;
+    ${canCreate ? html`<section class="card card-accent">
+      <h2>Nowa grupa</h2>
+      ${eventForm({ csrf, action: '/manage/events', values, errors, submit: 'Utwórz grupę', create: true })}
+    </section>` : ''}
+  </div>
+  ${all ? html`<section class="card">
+    <h2>Wszystkie grupy na stronie (superadmin)</h2>
+    ${groupList(all, { owner: true })}
+  </section>` : ''}`;
 }
 
-export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, log, errors = {}, values, mailEnabled }) {
+export function manageEvent({ csrf, event, inviteUrl, participants, exclusions, log, errors = {}, values, mailEnabled, viewer }) {
   const byId = new Map(participants.map((p) => [p.id, p]));
   const incomplete = participants.filter((p) => !p.profile_complete).length;
   const open = event.status === 'open';
   return html`
-  <p><a href="/admin">← Wszystkie wydarzenia</a></p>
+  <p><a href="/manage">← Twoje grupy</a></p>
   <div class="page-head"><h1>${event.name}</h1>${statusTag(event.status)}</div>
 
   <section class="card card-accent">
@@ -53,7 +65,7 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
       <input id="invite" readonly value="${inviteUrl}" aria-label="Link z zaproszeniem">
       <button class="btn" type="button" data-copy="#invite">Kopiuj</button>
     </div>
-    <form method="post" action="/admin/events/${event.id}/invite" data-confirm="Stary link przestanie działać. Kontynuować?">
+    <form method="post" action="/manage/events/${event.id}/invite" data-confirm="Stary link przestanie działać. Kontynuować?">
       ${csrfField(csrf)}<button class="btn btn-ghost btn-small">Wygeneruj nowy link</button>
     </form>
   </section>
@@ -67,22 +79,22 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
         : html`<p class="muted">Losowanie automatyczne jest wyłączone – kliknij, gdy wszyscy się zapiszą.</p>`}
       ${mailEnabled ? '' : html`<p class="warn">E-maile są wyłączone (brak SMTP) – daj znać uczestnikom samodzielnie, że mogą zajrzeć na stronę.</p>`}
       <p class="muted">Po losowaniu zapisy zostają zamknięte. Wynik jest szyfrowany – nikt nie zobaczy pełnej listy par.</p>
-      <form method="post" action="/admin/events/${event.id}/draw" data-confirm="Rozpocząć losowanie dla ${participants.length} osób?">
+      <form method="post" action="/manage/events/${event.id}/draw" data-confirm="Rozpocząć losowanie dla ${participants.length} osób?">
         ${csrfField(csrf)}<button class="btn btn-primary" ${participants.length < 3 ? html`disabled` : ''}>Losuj!</button>
       </form>`
     : html`
       <p>Losowanie: <b>${fmtDateTime(event.drawn_at)}</b></p>
       <div class="actions">
         ${event.status === 'drawn' ? html`
-        <form method="post" action="/admin/events/${event.id}/finish" data-confirm="Zakończyć wydarzenie? Wiadomości zostaną zablokowane.">
+        <form method="post" action="/manage/events/${event.id}/finish" data-confirm="Zakończyć wydarzenie? Wiadomości zostaną zablokowane.">
           ${csrfField(csrf)}<button class="btn">Zakończ wydarzenie</button></form>` : html`
-        <form method="post" action="/admin/events/${event.id}/reopen">
+        <form method="post" action="/manage/events/${event.id}/reopen">
           ${csrfField(csrf)}<button class="btn">Wznów wydarzenie</button></form>`}
       </div>
       <details class="danger-zone">
         <summary>Anuluj losowanie</summary>
         <p>Usuwa wszystkie pary i wiadomości, otwiera zapisy ponownie. Fakt anulowania i powód zobaczą wszyscy uczestnicy.</p>
-        <form method="post" action="/admin/events/${event.id}/reset" data-confirm="Na pewno anulować losowanie?">
+        <form method="post" action="/manage/events/${event.id}/reset" data-confirm="Na pewno anulować losowanie?">
           ${csrfField(csrf)}
           ${input({ label: 'Powód (widoczny dla wszystkich)', name: 'reason', required: true, max: 300 })}
           <button class="btn btn-danger">Anuluj losowanie</button>
@@ -99,10 +111,10 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
         <td>${p.profile_complete ? '✅' : '—'}</td>
         <td>${fmtDateTime(p.joined_at)}</td>
         <td class="actions">
-          <form method="post" action="/admin/users/${p.user_id}/reset-link" class="inline">
+          ${viewer?.is_admin ? html`<form method="post" action="/manage/users/${p.user_id}/reset-link" class="inline">
             ${csrfField(csrf)}<input type="hidden" name="event_id" value="${event.id}">
-            <button class="btn btn-small btn-ghost" title="Jednorazowy link do ustawienia hasła">Reset hasła</button></form>
-          ${open ? html`<form method="post" action="/admin/events/${event.id}/participants/${p.id}/remove" class="inline" data-confirm="Usunąć ${p.name} z wydarzenia?">
+            <button class="btn btn-small btn-ghost" title="Jednorazowy link do ustawienia hasła">Reset hasła</button></form>` : ''}
+          ${open ? html`<form method="post" action="/manage/events/${event.id}/participants/${p.id}/remove" class="inline" data-confirm="Usunąć ${p.name} z wydarzenia?">
             ${csrfField(csrf)}<button class="btn btn-small btn-danger">Usuń</button></form>` : ''}
         </td>
       </tr>`)}</tbody>
@@ -114,11 +126,11 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
     <p class="muted">Pary, które nie mogą wylosować siebie nawzajem (np. partnerzy, współlokatorzy).</p>
     ${exclusions.length ? html`<ul class="list">${exclusions.map((x) => html`<li>
       ${byId.get(x.a)?.name} ↔ ${byId.get(x.b)?.name}
-      ${open ? html`<form method="post" action="/admin/events/${event.id}/exclusions/remove" class="inline">
+      ${open ? html`<form method="post" action="/manage/events/${event.id}/exclusions/remove" class="inline">
         ${csrfField(csrf)}<input type="hidden" name="a" value="${x.a}"><input type="hidden" name="b" value="${x.b}">
         <button class="btn btn-small btn-ghost" aria-label="Usuń wykluczenie">✕</button></form>` : ''}
     </li>`)}</ul>` : html`<p class="muted">Brak.</p>`}
-    ${open && participants.length >= 2 ? html`<form method="post" action="/admin/events/${event.id}/exclusions" class="row-3">
+    ${open && participants.length >= 2 ? html`<form method="post" action="/manage/events/${event.id}/exclusions" class="row-3">
       ${csrfField(csrf)}
       <select name="a" aria-label="Osoba 1">${participants.map((p) => html`<option value="${p.id}">${p.name}</option>`)}</select>
       <select name="b" aria-label="Osoba 2">${participants.map((p) => html`<option value="${p.id}">${p.name}</option>`)}</select>
@@ -128,7 +140,7 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
 
   <section class="card">
     <h2>⚙️ Ustawienia</h2>
-    ${eventForm({ csrf, action: `/admin/events/${event.id}`, values: values ?? event, errors, submit: 'Zapisz zmiany' })}
+    ${eventForm({ csrf, action: `/manage/events/${event.id}`, values: values ?? event, errors, submit: 'Zapisz zmiany' })}
   </section>
 
   ${event.status !== 'open' ? html`<section class="card card-danger">
@@ -136,7 +148,7 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
     <p>Tylko w krytycznej sytuacji (np. ktoś zgubił dostęp, zniknął, trzeba przekazać prezent dalej).
     Pokazuje <b>jedną</b> parę. <b>Każde użycie jest widoczne dla wszystkich uczestników</b> razem z powodem.</p>
     ${errors.reveal ? html`<p class="flash flash-error">${errors.reveal}</p>` : ''}
-    <form method="post" action="/admin/events/${event.id}/reveal" data-confirm="To zostanie publicznie odnotowane. Kontynuować?">
+    <form method="post" action="/manage/events/${event.id}/reveal" data-confirm="To zostanie publicznie odnotowane. Kontynuować?">
       ${csrfField(csrf)}
       <div class="field"><label for="rv-p">Czyj przydział?</label>
         <select id="rv-p" name="participant_id">${participants.map((p) => html`<option value="${p.id}">${p.name}</option>`)}</select></div>
@@ -161,7 +173,7 @@ export function adminEvent({ csrf, event, inviteUrl, participants, exclusions, l
   <section class="card card-danger">
     <h2>🗑️ Usuń wydarzenie</h2>
     <p>Trwale usuwa wydarzenie, profile uczestników, pary i wiadomości (konta zostają). Zrób to po zakończonej zabawie – mniej danych = mniej ryzyka.</p>
-    <form method="post" action="/admin/events/${event.id}/delete" data-confirm="Trwale usunąć wydarzenie i wszystkie jego dane?">
+    <form method="post" action="/manage/events/${event.id}/delete" data-confirm="Trwale usunąć wydarzenie i wszystkie jego dane?">
       ${csrfField(csrf)}
       ${input({ label: `Wpisz nazwę wydarzenia, aby potwierdzić`, name: 'confirm', required: true, error: errors.delete })}
       <button class="btn btn-danger">Usuń na zawsze</button>
@@ -176,7 +188,7 @@ export function adminReveal({ event, subject, mode, other }) {
       ? html`<b>${subject.name}</b> obdarowuje <b>${other?.name ?? '?'}</b>`
       : html`Mikołajem <b>${subject.name}</b> jest <b>${other?.name ?? '?'}</b>`}</p>
     <p class="muted">To zdarzenie zostało zapisane w dzienniku i jest widoczne dla uczestników. Ta strona nie jest zapisywana – po odświeżeniu nie wróci.</p>
-    <p><a class="btn" href="/admin/events/${event.id}">Wróć</a></p>
+    <p><a class="btn" href="/manage/events/${event.id}">Wróć</a></p>
   </section>`;
 }
 
@@ -185,6 +197,6 @@ export function adminResetLink({ user, link, eventId }) {
     <h1>Link do ustawienia hasła</h1>
     <p>Przekaż go <b>${user.name}</b> (${user.email}) prywatnym kanałem. Ważny 24 h, jednorazowy.</p>
     <div class="copy"><input id="reset-link" readonly value="${link}" aria-label="Link resetu"><button class="btn" type="button" data-copy="#reset-link">Kopiuj</button></div>
-    <p><a class="btn btn-ghost" href="${eventId ? `/admin/events/${eventId}` : '/admin'}">Wróć</a></p>
+    <p><a class="btn btn-ghost" href="${eventId ? `/manage/events/${eventId}` : '/manage'}">Wróć</a></p>
   </section>`;
 }

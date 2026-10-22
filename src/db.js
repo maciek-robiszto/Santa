@@ -88,6 +88,9 @@ const MIGRATIONS = [
   // v3: automatic draw after the signup deadline + one reminder before it.
   `ALTER TABLE events ADD COLUMN auto_draw INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE events ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0;`,
+  // v4: self-service groups – every event has an organizer (owner).
+  `ALTER TABLE events ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+   CREATE INDEX events_owner ON events(owner_user_id);`,
 ];
 
 export function openDb(file) {

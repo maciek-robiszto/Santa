@@ -27,7 +27,7 @@ const STATUS = {
 };
 export const statusTag = (status) => html`<span class="tag ${STATUS[status][1]}">${STATUS[status][0]}</span>`;
 
-export function layout({ title, body, user, csrf, flash, siteName, wide = false }) {
+export function layout({ title, body, user, csrf, flash, siteName, wide = false, canOrganize, openRegistration }) {
   return html`<!doctype html>
 <html lang="pl">
 <head>
@@ -48,10 +48,10 @@ export function layout({ title, body, user, csrf, flash, siteName, wide = false 
     <nav class="nav" aria-label="Główna nawigacja">
       ${user ? html`
         <a href="/">Moje mikołajki</a>
-        ${user.is_admin ? html`<a href="/admin">Panel admina</a>` : ''}
+        ${canOrganize || user.is_admin ? html`<a href="/manage">Organizuj</a>` : ''}
         <a href="/account">Konto</a>
         <form method="post" action="/logout" class="inline">${csrfField(csrf)}<button class="link">Wyloguj</button></form>
-      ` : html`<a href="/login">Zaloguj</a>`}
+      ` : html`<a href="/login">Zaloguj</a>${openRegistration ? html`<a href="/register">Załóż konto</a>` : ''}`}
     </nav>
   </div>
 </header>
@@ -61,7 +61,7 @@ export function layout({ title, body, user, csrf, flash, siteName, wide = false 
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <span>🔒 Pary są szyfrowane. Nikt – także admin – nie widzi listy „kto komu”.</span>
+    <span>🔒 Pary są szyfrowane. Nikt – także organizator – nie widzi listy „kto komu”.</span>
     <span>Zrobione z 🧡 przez makerów, dla makerów.</span>
   </div>
 </footer>

@@ -94,7 +94,7 @@ main { flex: 1; padding-top: 40px; padding-bottom: 72px; }
 .card-link h2 { color: var(--ink); text-transform: none; font-size: 1.3rem; }
 .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .cards { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
-.grid-2 { display: grid; gap: 0 32px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.grid-2 { display: grid; gap: 0 32px; align-items: start; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
 .row-2 { display: grid; gap: 0 18px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
 .row-3 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr auto; align-items: center; }
 @media (max-width: 560px) { .row-3 { grid-template-columns: 1fr; } }

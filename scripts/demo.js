@@ -15,7 +15,7 @@ if (store.db.prepare('SELECT COUNT(*) n FROM users').get().n > 0) {
 
 const PASSWORD = 'mikolajki-demo';
 const hash = await hashPassword(PASSWORD);
-store.createUser({ email: 'admin@demo.pl', name: 'Organizator', passwordHash: hash, isAdmin: true });
+const adminId = store.createUser({ email: 'admin@demo.pl', name: 'Organizator', passwordHash: hash, isAdmin: true });
 
 const deadline = new Date(Date.now() + 7 * 86400_000).toISOString().slice(0, 10);
 const exchange = new Date(Date.now() + 14 * 86400_000).toISOString().slice(0, 10);
@@ -23,7 +23,7 @@ const eventId = store.createEvent({
   name: 'Makerskie Mikołajki (demo)',
   description: 'Robimy prezenty własnoręcznie albo wyszukujemy coś z sercem.\nWymiana na spotkaniu – przynieś prezent z etykietą!',
   budget: 'do 100 zł', location: 'robisz.to, sala warsztatowa, 18:00',
-  signup_deadline: deadline, exchange_date: exchange, auto_draw: true, reveal_santas: true,
+  signup_deadline: deadline, exchange_date: exchange, auto_draw: true, reveal_santas: true, owner_user_id: adminId,
 });
 
 const people = [
@@ -49,6 +49,7 @@ console.log(`
 
   Admin:        admin@demo.pl            hasło: ${PASSWORD}
   Uczestnicy:   ala@demo.pl … henryk@demo.pl   hasło: ${PASSWORD}
+  Nowe konto:   ${config.origin}/register  (każdy może założyć własną grupę)
   Zaproszenie:  ${config.origin}/join/${invite}
 
 Wskazówka: zaloguj się na admina w zwykłym oknie, a na uczestnika w oknie

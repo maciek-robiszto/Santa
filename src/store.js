@@ -94,9 +94,9 @@ export function createStore(db, cipher) {
     // ---------- events ----------
     createEvent(data) {
       const r = q(`INSERT INTO events (name, description, budget, signup_deadline, exchange_date, location,
-        reveal_santas, auto_draw, invite_token, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        reveal_santas, auto_draw, invite_token, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, randomToken(18), now());
+          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, randomToken(18), data.owner_user_id ?? null, now());
       return Number(r.lastInsertRowid);
     },
     updateEvent(id, data) {
@@ -114,8 +114,12 @@ export function createStore(db, cipher) {
     deleteEvent: (id) => q('DELETE FROM events WHERE id = ?').run(id),
     eventById: (id) => q('SELECT * FROM events WHERE id = ?').get(id),
     eventByInvite: (token) => q('SELECT * FROM events WHERE invite_token = ?').get(String(token)),
-    allEvents: () => q(`SELECT e.*, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
-      FROM events e ORDER BY e.created_at DESC`).all(),
+    allEvents: () => q(`SELECT e.*, u.name AS owner_name, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
+      FROM events e LEFT JOIN users u ON u.id = e.owner_user_id ORDER BY e.created_at DESC`).all(),
+    eventsOwnedBy: (userId) => q(`SELECT e.*, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
+      FROM events e WHERE e.owner_user_id = ? ORDER BY e.created_at DESC`).all(userId),
+    activeOwnedCount: (userId) => q("SELECT COUNT(*) AS n FROM events WHERE owner_user_id = ? AND status != 'finished'").get(userId).n,
+    participantCount: (eventId) => q('SELECT COUNT(*) AS n FROM participants WHERE event_id = ?').get(eventId).n,
     eventsForUser: (userId) => q(`SELECT e.*, p.id AS participant_id, p.profile_complete,
       (SELECT COUNT(*) FROM participants x WHERE x.event_id = e.id) AS participant_count
       FROM participants p JOIN events e ON e.id = p.event_id WHERE p.user_id = ? ORDER BY e.created_at DESC`).all(userId),

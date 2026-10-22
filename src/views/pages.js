@@ -12,15 +12,15 @@ export const AUDIT_LABELS = {
   'event.reopen': 'Wznowiono wydarzenie',
   'participant.join': 'Dołączył(a) uczestnik',
   'participant.leave': 'Uczestnik zrezygnował',
-  'participant.remove': 'Admin usunął uczestnika',
+  'participant.remove': 'Organizator usunął uczestnika',
   'exclusion.add': 'Dodano wykluczenie',
   'exclusion.remove': 'Usunięto wykluczenie',
   'draw.run': 'Przeprowadzono losowanie',
   'draw.reset': 'Losowanie zostało anulowane',
   'draw.auto': 'Automatyczne losowanie po terminie zapisów',
   'draw.auto_failed': 'Automatyczne losowanie nie powiodło się',
-  'admin.reveal': '⚠️ Admin awaryjnie podejrzał przydział',
-  'admin.password_reset': 'Admin wygenerował link resetu hasła',
+  'admin.reveal': '⚠️ Organizator awaryjnie podejrzał przydział',
+  'admin.password_reset': 'Administrator strony wygenerował link resetu hasła',
 };
 
 const eventMeta = (e) => html`<dl class="meta">
@@ -38,12 +38,15 @@ export function homeAnon() {
       <h1>Makerskie Mikołajki</h1>
       <p class="lead">Losujesz osobę, <b>robisz</b> dla niej prezent (albo wyszukujesz coś z sercem), wręczasz. Proste.
       Bez arkuszy, bez „ups, wylosowałem siebie” i bez podglądania.</p>
-      <p><a class="btn btn-primary" href="/login">Zaloguj się</a></p>
-      <p class="hint">Masz link z zaproszeniem? Otwórz go, żeby dołączyć.</p>
+      <p class="actions">
+        <a class="btn btn-primary" href="/register?next=/manage">Załóż grupę</a>
+        <a class="btn" href="/login">Zaloguj się</a>
+      </p>
+      <p class="hint">Masz link z zaproszeniem? Otwórz go, żeby dołączyć. Chcesz zorganizować mikołajki dla swoich znajomych? Załóż grupę – to nic nie kosztuje.</p>
     </div>
     <div class="dotted">
       <ol class="steps">
-        <li><b>Dołącz</b> przez link od organizatora.</li>
+        <li><b>Załóż grupę</b> albo dołącz przez link od znajomych.</li>
         <li><b>Opisz się</b> – pasje, projekty, co lubisz, czego nie.</li>
         <li><b>Losowanie</b> – automatyczne, szyfrowane, bez par „na krzyż”.</li>
         <li><b>Działaj</b> – zobacz profil swojej osoby i pytaj ją anonimowo.</li>
@@ -66,6 +69,24 @@ export function loginPage({ csrf, email = '', error, next = '/' }) {
   </section>`;
 }
 
+export function registerPage({ csrf, next = '/', values = {}, errors = {} }) {
+  return html`<section class="card narrow">
+    <p class="kicker">Nowe konto</p>
+    <h1>Załóż konto</h1>
+    <form method="post" action="/register${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}">
+      ${csrfField(csrf)}
+      ${input({ label: 'Imię / ksywka', name: 'name', value: values.name, required: true, max: 60, error: errors.name, autocomplete: 'nickname', hint: 'Tak zobaczą Cię inni w grupie.' })}
+      ${input({ label: 'E-mail', name: 'email', type: 'email', value: values.email, required: true, max: 200, error: errors.email, autocomplete: 'email' })}
+      ${input({ label: 'Hasło', name: 'password', type: 'password', required: true, min: 10, error: errors.password, autocomplete: 'new-password', hint: 'Min. 10 znaków.' })}
+      <label class="check"><input type="checkbox" name="consent" value="1" required>
+        Zgadzam się na przetwarzanie moich danych na potrzeby zabawy. Mogę je usunąć w każdej chwili.</label>
+      ${errors.consent ? html`<p class="error">${errors.consent}</p>` : ''}
+      <button class="btn btn-primary">Załóż konto</button>
+    </form>
+    <p class="hint">Masz już konto? <a href="/login${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}">Zaloguj się</a>.</p>
+  </section>`;
+}
+
 export function forgotPage({ csrf, sent, mailEnabled }) {
   return html`<section class="card narrow">
     <h1>Reset hasła</h1>
@@ -75,7 +96,7 @@ export function forgotPage({ csrf, sent, mailEnabled }) {
         ${csrfField(csrf)}
         ${input({ label: 'E-mail', name: 'email', type: 'email', required: true, autocomplete: 'username' })}
         <button class="btn btn-primary">Wyślij link</button>
-      </form>` : html`<p>Napisz do organizatora – wygeneruje Ci jednorazowy link do ustawienia nowego hasła.</p>`}
+      </form>` : html`<p>Napisz do administratora strony – wygeneruje Ci jednorazowy link do ustawienia nowego hasła.</p>`}
   </section>`;
 }
 
@@ -138,7 +159,8 @@ export function dashboard({ events, user }) {
     </a>`)}
   </div>` : html`<div class="card empty">
     <p>Nie bierzesz jeszcze udziału w żadnych mikołajkach.</p>
-    <p class="muted">Poproś organizatora o link z zaproszeniem.</p>
+    <p class="muted">Poproś organizatora o link z zaproszeniem albo zorganizuj własne.</p>
+    <p><a class="btn btn-primary" href="/manage">Załóż grupę</a></p>
   </div>`}`;
 }
 
@@ -224,7 +246,7 @@ export function eventPage(ctx) {
 
   <section class="card" id="profil">
     <h2>✏️ Mój profil</h2>
-    <p class="muted">Zobaczy go tylko osoba, która Cię wylosuje (i admin w sytuacji awaryjnej). Możesz go zmieniać także po losowaniu.</p>
+    <p class="muted">Zobaczy go tylko osoba, która Cię wylosuje (i organizator w sytuacji awaryjnej). Możesz go zmieniać także po losowaniu.</p>
     ${canEditProfile ? html`<form method="post" action="/events/${event.id}/profile">
       ${csrfField(csrf)}
       ${PROFILE_FIELDS.map((f) => f.url

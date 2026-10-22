@@ -6,7 +6,8 @@ import { layout } from './views/layout.js';
 import { errorPage } from './views/pages.js';
 import { publicRoutes } from './routes/public.js';
 import { eventRoutes } from './routes/events.js';
-import { adminRoutes } from './routes/admin.js';
+import { manageRoutes } from './routes/manage.js';
+import { canCreateGroups } from './routes/helpers.js';
 
 const PUBLIC_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -45,6 +46,7 @@ export function createApp({ config, store, mailer }) {
     res.page = (title, body, opts = {}) => {
       res.status(opts.status ?? 200).type('html').send(String(layout({
         title, body, user: req.user, csrf: res.locals.csrf, flash: opts.flash ?? flash, siteName: config.siteName, wide: opts.wide,
+        canOrganize: canCreateGroups(config, req.user), openRegistration: config.openRegistration,
       })));
     };
     next();
@@ -52,7 +54,8 @@ export function createApp({ config, store, mailer }) {
 
   app.use(publicRoutes(ctx));
   app.use(eventRoutes(ctx));
-  app.use('/admin', adminRoutes(ctx));
+  app.use('/manage', manageRoutes(ctx));
+  app.get(['/admin', '/admin/*rest'], (req, res) => res.redirect(301, req.originalUrl.replace(/^\/admin/, '/manage')));
 
   app.use((req, res) => res.page('Nie znaleziono', errorPage(404, 'Nie ma tu takiej strony'), { status: 404 }));
   // eslint-disable-next-line no-unused-vars

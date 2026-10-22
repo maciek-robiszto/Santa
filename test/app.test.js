@@ -38,7 +38,7 @@ test('admin logs in and creates event', async () => {
   assert.equal(bad.status, 401);
   const r = await admin.post('/login', { email: 'admin@test.pl', password: 'admin-password-1' });
   assert.equal(r.status, 303);
-  const c = await admin.post('/admin/events', { name: 'Mikołajki 2026', description: 'Test', budget: '100 zł', location: 'Hackerspace' });
+  const c = await admin.post('/manage/events', { name: 'Mikołajki 2026', description: 'Test', budget: '100 zł', location: 'Hackerspace' });
   assert.equal(c.status, 303);
   eventId = Number(c.location.split('/').pop());
   invite = store.eventById(eventId).invite_token;
@@ -59,9 +59,9 @@ test('participants join via invite and fill profiles', async () => {
   assert.equal(dup.status, 422);
 });
 
-test('non-admin cannot reach admin panel or foreign events', async () => {
-  const r = await people[0].c.get('/admin');
-  assert.equal(r.status, 404);
+test('participants cannot manage a group they do not organize', async () => {
+  assert.equal((await people[0].c.get(`/manage/events/${eventId}`)).status, 404);
+  assert.equal((await people[0].c.post(`/manage/events/${eventId}/draw`, {})).status, 404);
   const outsider = new Client();
   await outsider.post(`/join/${invite}`, { name: 'Obcy', email: 'obcy@test.pl', password: 'haslo-testowe-1', consent: '1' });
   await outsider.post(`/events/${eventId}/leave`, {});
@@ -69,7 +69,7 @@ test('non-admin cannot reach admin panel or foreign events', async () => {
 });
 
 test('draw creates a secret, valid assignment', async () => {
-  const r = await admin.post(`/admin/events/${eventId}/draw`, {});
+  const r = await admin.post(`/manage/events/${eventId}/draw`, {});
   assert.equal(r.status, 303);
   const names = people.map((p) => p.name);
   const recipients = [];
@@ -88,7 +88,7 @@ test('draw creates a secret, valid assignment', async () => {
   assert.equal(new Set(recipients).size, people.length);
 
   // Admin page must not show any pairing.
-  const adminPage = (await admin.get(`/admin/events/${eventId}`)).text;
+  const adminPage = (await admin.get(`/manage/events/${eventId}`)).text;
   assert.ok(!adminPage.includes('recipient-name'));
   assert.ok(!/sekret-/.test(adminPage));
 });
@@ -126,9 +126,9 @@ test('gift label shows only the recipient', async () => {
 
 test('break-glass reveal needs password and is public', async () => {
   const pid = store.participantFor(eventId, store.userByEmail('ala@test.pl').id).id;
-  const bad = await admin.post(`/admin/events/${eventId}/reveal`, { participant_id: String(pid), mode: 'recipient', reason: 'test', password: 'wrong' });
+  const bad = await admin.post(`/manage/events/${eventId}/reveal`, { participant_id: String(pid), mode: 'recipient', reason: 'test', password: 'wrong' });
   assert.equal(bad.status, 422);
-  const ok = await admin.post(`/admin/events/${eventId}/reveal`, { participant_id: String(pid), mode: 'recipient', reason: 'Ala zgubiła telefon', password: 'admin-password-1' });
+  const ok = await admin.post(`/manage/events/${eventId}/reveal`, { participant_id: String(pid), mode: 'recipient', reason: 'Ala zgubiła telefon', password: 'admin-password-1' });
   assert.equal(ok.status, 200);
   assert.match(ok.text, /<b>Ala<\/b> obdarowuje <b>/);
   const bartek = (await people[1].c.get(`/events/${eventId}`)).text;
@@ -138,7 +138,7 @@ test('break-glass reveal needs password and is public', async () => {
 test('cannot delete account during active draw; reset draw clears pairs', async () => {
   const r = await people[2].c.post('/account/delete', { password: 'haslo-testowe-1' });
   assert.equal(r.status, 422);
-  await admin.post(`/admin/events/${eventId}/reset`, { reason: 'ktoś dołącza' });
+  await admin.post(`/manage/events/${eventId}/reset`, { reason: 'ktoś dołącza' });
   assert.equal(store.db.prepare('SELECT COUNT(*) n FROM assignments').get().n, 0);
   assert.equal(store.eventById(eventId).status, 'open');
 });

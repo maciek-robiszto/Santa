@@ -26,12 +26,12 @@ test('deadline ends at midnight Warsaw time (DST aware)', () => {
 });
 
 test('auto draw requires a signup deadline', async () => {
-  const r = await admin.post('/admin/events', { name: 'Bez terminu', auto_draw: '1' });
+  const r = await admin.post('/manage/events', { name: 'Bez terminu', auto_draw: '1' });
   assert.equal(r.status, 422);
 });
 
 test('organizer creates an event with auto draw', async () => {
-  const r = await admin.post('/admin/events', {
+  const r = await admin.post('/manage/events', {
     name: 'Mikołajki grupowe', location: 'Hackerspace', budget: '100 zł', signup_deadline: '2026-11-30', exchange_date: '2026-12-06', auto_draw: '1',
   });
   assert.equal(r.status, 303);
@@ -56,7 +56,7 @@ test(`${N} people join concurrently, 2/3 fill their profile`, async () => {
 test('admin adds exclusions (couples)', async () => {
   const ps = t.store.participants(eventId);
   for (let i = 0; i < 6; i += 2) {
-    await admin.post(`/admin/events/${eventId}/exclusions`, { a: String(ps[i].id), b: String(ps[i + 1].id) });
+    await admin.post(`/manage/events/${eventId}/exclusions`, { a: String(ps[i].id), b: String(ps[i + 1].id) });
   }
   assert.equal(t.store.exclusions(eventId).length, 3);
 });
@@ -111,7 +111,7 @@ test('every participant sees exactly one valid recipient', async () => {
 });
 
 test('failed auto draw notifies admins and is not retried', async () => {
-  const r = await admin.post('/admin/events', { name: 'Za mało osób', signup_deadline: '2026-11-30', auto_draw: '1' });
+  const r = await admin.post('/manage/events', { name: 'Za mało osób', signup_deadline: '2026-11-30', auto_draw: '1' });
   const id = Number(r.location.split('/').pop());
   t.sent.length = 0;
   const s = createScheduler(t, () => deadlineEnd('2026-11-30') + 1);

@@ -49,11 +49,12 @@ export function createScheduler(ctx, now = () => Date.now()) {
       // Do not retry every minute – the organizer has to fix it and draw manually.
       store.setAutoDraw(event.id, false);
       store.audit({ eventId: event.id, action: 'draw.auto_failed', detail: err.message, isPublic: true });
-      for (const admin of store.admins()) {
+      const owner = event.owner_user_id && store.userById(event.owner_user_id);
+      for (const admin of owner ? [owner] : store.admins()) {
         mailer.send({
           to: admin.email,
           subject: `${config.siteName}: automatyczne losowanie nie powiodło się`,
-          text: `Wydarzenie „${event.name}”: ${err.message}\nPopraw i wylosuj ręcznie: ${config.origin}/admin/events/${event.id}\n`,
+          text: `Wydarzenie „${event.name}”: ${err.message}\nPopraw i wylosuj ręcznie: ${config.origin}/manage/events/${event.id}\n`,
         });
       }
     }
