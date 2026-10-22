@@ -1,0 +1,23 @@
+{
+  "name": "makerskie-mikolajki",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Bezpieczne losowanie Secret Santa dla makerów",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js",
+    "admin:create": "node --disable-warning=ExperimentalWarning scripts/create-admin.js",
+    "backup": "node --disable-warning=ExperimentalWarning scripts/backup.js",
+    "gen-key": "node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64'))\""
+  },
+  "dependencies": {
+    "express": "^5.3.0",
+    "nodemailer": "^7.0.13"
+  }
+}

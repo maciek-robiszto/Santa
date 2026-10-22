@@ -1,0 +1,6 @@
+# Automatyczny certyfikat HTTPS (Let's Encrypt) dla domeny z .env (DOMAIN=...).
+# Celowo bez dyrektywy `log` – brak logów dostępu = brak tokenów i IP w logach.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:3000
+}
