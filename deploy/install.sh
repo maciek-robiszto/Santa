@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Instalacja / aktualizacja Makerskich Mikołajek na serwerze z Dockerem.
 # Uruchom w katalogu repozytorium:  bash deploy/install.sh
+# Bez pytań (np. przez SSH/automat): DOMAIN=… [APP_PORT=3010] [USE_CADDY=no]
+#   [ADMIN_EMAIL=… ADMIN_NAME=… ADMIN_PASSWORD=…] bash deploy/install.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -13,9 +15,9 @@ command -v openssl >/dev/null || die "Brak openssl."
 
 if [[ ! -f .env ]]; then
   say "Pierwsza instalacja – tworzę .env"
-  read -rp "Domena (np. mikolajki.naskret.eu): " DOMAIN
+  [[ -n "${DOMAIN:-}" ]] || read -rp "Domena (np. mikolajki.naskret.eu): " DOMAIN
   [[ -n "$DOMAIN" ]] || die "Domena jest wymagana."
-  read -rp "Port lokalny aplikacji [3010]: " APP_PORT; APP_PORT=${APP_PORT:-3010}
+  [[ -n "${APP_PORT:-}" ]] || read -rp "Port lokalny aplikacji [3010]: " APP_PORT; APP_PORT=${APP_PORT:-3010}
   umask 077
   cat > .env <<ENV
 DOMAIN=$DOMAIN
@@ -35,7 +37,9 @@ set -a; source .env; set +a
 APP_PORT=${APP_PORT:-3010}
 
 PROFILE=()
-if ss -tln 2>/dev/null | grep -qE '[:.]443\s'; then
+if [[ -n "${USE_CADDY:-}" ]]; then
+  [[ "$USE_CADDY" =~ ^(yes|tak|1|true)$ ]] && PROFILE=(--profile caddy)
+elif ss -tln 2>/dev/null | grep -qE '[:.]443\s'; then
   say "Port 443 jest zajęty – zakładam istniejący reverse proxy (nginx/Caddy/Traefik)."
 else
   read -rp "Port 443 wolny. Uruchomić wbudowany Caddy z automatycznym HTTPS? [T/n]: " a
@@ -54,9 +58,15 @@ done
 if ! docker compose exec -T app node --disable-warning=ExperimentalWarning -e \
   "const {DatabaseSync}=require('node:sqlite');const d=new DatabaseSync('/data/santa.db');process.exit(d.prepare('select count(*) n from users where is_admin=1').get().n?0:1)" 2>/dev/null; then
   say "Tworzę konto superadmina"
-  read -rp "Twój e-mail: " EMAIL
-  read -rp "Imię / ksywka: " NAME
-  docker compose exec app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email "$EMAIL" --name "$NAME"
+  if [[ -n "${ADMIN_EMAIL:-}" && -n "${ADMIN_PASSWORD:-}" ]]; then
+    docker compose exec -T -e ADMIN_PASSWORD="$ADMIN_PASSWORD" app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email "$ADMIN_EMAIL" --name "${ADMIN_NAME:-Admin}"
+  elif [[ -t 0 ]]; then
+    read -rp "Twój e-mail: " EMAIL
+    read -rp "Imię / ksywka: " NAME
+    docker compose exec app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email "$EMAIL" --name "$NAME"
+  else
+    echo "Pomijam (brak terminala). Później: docker compose exec app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email TY@example.pl --name Imię"
+  fi
 fi
 
 if [[ ${#PROFILE[@]} -eq 0 ]]; then
