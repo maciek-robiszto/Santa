@@ -24,7 +24,7 @@ DOMAIN=$DOMAIN
 APP_URL=https://$DOMAIN
 APP_PORT=$APP_PORT
 ENCRYPTION_KEY=$(openssl rand -base64 32)
-SITE_NAME=Makerskie Mikołajki
+SITE_NAME="Makerskie Mikołajki"
 # Poczta (opcjonalnie) – uzupełnij i uruchom skrypt ponownie:
 # SMTP_URL=smtps://santa%40example.pl:HASLO@smtp.example.pl:465
 # MAIL_FROM="Makerskie Mikołajki <santa@example.pl>"
