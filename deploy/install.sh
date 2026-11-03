@@ -17,7 +17,7 @@ if [[ ! -f .env ]]; then
   say "Pierwsza instalacja – tworzę .env"
   [[ -n "${DOMAIN:-}" ]] || read -rp "Domena (np. mikolaj.robisz.to): " DOMAIN
   [[ -n "$DOMAIN" ]] || die "Domena jest wymagana."
-  [[ -n "${APP_PORT:-}" ]] || read -rp "Port lokalny aplikacji [3010]: " APP_PORT; APP_PORT=${APP_PORT:-3010}
+  [[ -n "${APP_PORT:-}" || ! -t 0 ]] || read -rp "Port lokalny aplikacji [3010]: " APP_PORT; APP_PORT=${APP_PORT:-3010}
   umask 077
   cat > .env <<ENV
 DOMAIN=$DOMAIN
