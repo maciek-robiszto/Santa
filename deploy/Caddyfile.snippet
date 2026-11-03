@@ -1,0 +1,7 @@
+# Dopisz do istniejącego Caddyfile i zrób: caddy reload  (lub docker restart <kontener caddy>)
+# Jeśli Twój Caddy działa w kontenerze, 127.0.0.1 wskazuje na sam kontener –
+# użyj wtedy host.docker.internal:3010 (z extra_hosts: host-gateway) albo wspólnej sieci Dockera.
+mikolajki.naskret.eu {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3010
+}

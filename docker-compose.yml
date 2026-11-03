@@ -1,3 +1,6 @@
+# Domyślnie startuje tylko aplikacja, nasłuchująca lokalnie na 127.0.0.1:${APP_PORT}
+# (pod istniejący reverse proxy: nginx / Caddy / Traefik – patrz deploy/).
+# Na czystym serwerze z wolnymi portami 80/443:  docker compose --profile caddy up -d
 services:
   app:
     build: .
@@ -6,15 +9,17 @@ services:
     environment:
       NODE_ENV: production
       TRUST_PROXY: "1"
+    ports:
+      - "127.0.0.1:${APP_PORT:-3010}:3000"
     volumes:
       - santa-data:/data
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
-    expose: ["3000"]
 
   caddy:
+    profiles: [caddy]
     image: caddy:2-alpine
     restart: unless-stopped
     ports: ["80:80", "443:443"]

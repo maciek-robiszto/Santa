@@ -35,19 +35,23 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 
 **RODO / minimalizacja danych:** uczestnik może usunąć konto (poza czasem trwającego losowania), admin może po zabawie usunąć całe wydarzenie razem z profilami i wiadomościami.
 
-## Uruchomienie produkcyjne (Docker + automatyczny HTTPS)
+## Uruchomienie produkcyjne
 
-Wymagania: serwer z Dockerem, domena wskazująca na serwer (porty 80/443).
+Wymagania: serwer z Dockerem (i `docker compose`), domena wskazująca na serwer.
 
 ```bash
-cp .env.example .env
-npm run gen-key            # lub: openssl rand -base64 32  → wklej do ENCRYPTION_KEY
-nano .env                  # DOMAIN, APP_URL, (opcjonalnie SMTP)
-docker compose up -d --build
-docker compose exec app node --disable-warning=ExperimentalWarning scripts/create-admin.js --email ty@example.pl --name "Twoje imię"
+git clone https://github.com/maciek-robiszto/santa.git && cd santa
+git checkout claude/secret-santa-app     # do czasu scalenia z main
+bash deploy/install.sh
 ```
 
-Potem zaloguj się na `https://twoja-domena/`, wejdź w **Organizuj** → utwórz grupę → skopiuj link z zaproszeniem. Inni mogą zakładać własne grupy przez **Załóż konto**.
+Skrypt tworzy `.env` (z wygenerowanym `ENCRYPTION_KEY`), buduje i uruchamia aplikację na `127.0.0.1:3010`, sprawdza, czy działa, i zakłada konto superadmina. Potem:
+
+- **serwer ma już reverse proxy** (nginx/Caddy/Traefik na 80/443) – dodaj domenę według `deploy/nginx.conf.example` lub `deploy/Caddyfile.snippet`;
+- **czysty serwer** – skrypt zaproponuje wbudowany Caddy z automatycznym HTTPS.
+
+Aktualizacja: `git pull && bash deploy/install.sh` (dane i `.env` zostają).
+Poczta: odkomentuj `SMTP_URL` i `MAIL_FROM` w `.env`, potem `docker compose up -d`.
 
 ### Kopie zapasowe
 
