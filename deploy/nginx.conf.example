@@ -1,8 +1,8 @@
 # /etc/nginx/sites-available/mikolajki  →  ln -s ../sites-available/mikolajki /etc/nginx/sites-enabled/
-# Następnie: nginx -t && systemctl reload nginx && certbot --nginx -d mikolajki.naskret.eu
+# Następnie: nginx -t && systemctl reload nginx && certbot --nginx -d mikolaj.robisz.to
 server {
     listen 80;
-    server_name mikolajki.naskret.eu;
+    server_name mikolaj.robisz.to;
 
     # Bez logów dostępu: tokeny zaproszeń i resetu nie trafiają do logów.
     access_log off;
