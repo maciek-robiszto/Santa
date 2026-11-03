@@ -15,8 +15,8 @@ command -v openssl >/dev/null || die "Brak openssl."
 
 if [[ ! -f .env ]]; then
   say "Pierwsza instalacja – tworzę .env"
-  [[ -n "${DOMAIN:-}" ]] || read -rp "Domena (np. mikolaj.robisz.to): " DOMAIN
-  [[ -n "$DOMAIN" ]] || die "Domena jest wymagana."
+  [[ -n "${DOMAIN:-}" || ! -t 0 ]] || read -rp "Domena (np. mikolaj.robisz.to): " DOMAIN
+  [[ -n "${DOMAIN:-}" ]] || die "Domena jest wymagana (bez terminala podaj ją w zmiennej DOMAIN)."
   [[ -n "${APP_PORT:-}" || ! -t 0 ]] || read -rp "Port lokalny aplikacji [3010]: " APP_PORT; APP_PORT=${APP_PORT:-3010}
   umask 077
   cat > .env <<ENV
@@ -41,9 +41,11 @@ if [[ -n "${USE_CADDY:-}" ]]; then
   [[ "$USE_CADDY" =~ ^(yes|tak|1|true)$ ]] && PROFILE=(--profile caddy)
 elif ss -tln 2>/dev/null | grep -qE '[:.]443\s'; then
   say "Port 443 jest zajęty – zakładam istniejący reverse proxy (nginx/Caddy/Traefik)."
-else
+elif [[ -t 0 ]]; then
   read -rp "Port 443 wolny. Uruchomić wbudowany Caddy z automatycznym HTTPS? [T/n]: " a
   [[ "${a:-T}" =~ ^[TtYy]$ ]] && PROFILE=(--profile caddy)
+else
+  say "Port 443 wolny, brak terminala – pomijam wbudowany Caddy (włączysz go przez USE_CADDY=yes)."
 fi
 
 say "Budowanie i start"
