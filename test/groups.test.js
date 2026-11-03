@@ -16,7 +16,7 @@ after(() => t.close());
 
 test('anyone can register and create a group (joining it too)', async () => {
   org = t.client();
-  const r = await org.post('/register?next=/manage', { name: 'Kasia', email: 'kasia@test.pl', password: 'haslo-testowe-1', consent: '1' });
+  const r = await t.registerByMail(org, { name: 'Kasia', email: 'kasia@test.pl', password: 'haslo-testowe-1' }, '/manage');
   assert.equal(r.status, 303);
   assert.equal(r.location, '/manage');
   const c = await org.post('/manage/events', { name: 'Mikołajki u Kasi', signup_deadline: '2026-12-01', auto_draw: '1', join_self: '1' });
@@ -30,8 +30,13 @@ test('anyone can register and create a group (joining it too)', async () => {
 
 test('friends join through the link; organizer manages only own group', async () => {
   friend = t.client();
-  await friend.post(`/join/${invite}`, { name: 'Tomek', email: 'tomek@test.pl', password: 'haslo-testowe-1', consent: '1' });
+  await t.joinByMail(friend, invite, { name: 'Tomek', email: 'tomek@test.pl' });
   assert.equal((await friend.get(`/manage/events/${groupId}`)).status, 404);
+  // Organizing needs a password, set through a link sent to the verified address.
+  assert.equal((await friend.post('/manage/events', { name: 'Bez hasła' })).status, 404);
+  await friend.post('/forgot', { email: 'tomek@test.pl' });
+  const reset = t.sent.findLast((m) => m.to === 'tomek@test.pl').text.match(/\/reset\/[\w-]+/)[0];
+  assert.equal((await friend.post(reset, { password: 'haslo-testowe-1' })).status, 303);
   // Tomek makes his own group – Kasia cannot touch it.
   const c = await friend.post('/manage/events', { name: 'Grupa Tomka' });
   const tomekGroup = Number(c.location.split('/').pop());

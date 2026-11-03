@@ -38,17 +38,23 @@ export function createStore(db, cipher) {
     },
     userByEmail: (email) => q('SELECT * FROM users WHERE email = ?').get(email),
     userById: (id) => q('SELECT * FROM users WHERE id = ?').get(id),
-    updateUser(id, { name, email }) {
-      q('UPDATE users SET name = ?, email = ? WHERE id = ?').run(name, email, id);
-    },
+    // The address is verified once, when the account is created, and never changes:
+    // it is the login of participants and recovers the password of organizers.
+    renameUser: (id, name) => q('UPDATE users SET name = ? WHERE id = ?').run(name, id),
     setPassword(id, passwordHash) {
       transaction(db, () => {
         q('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
         q('DELETE FROM sessions WHERE user_id = ?').run(id);
         q('DELETE FROM password_resets WHERE user_id = ?').run(id);
+        q('DELETE FROM login_links WHERE email = (SELECT email FROM users WHERE id = ?)').run(id);
       });
     },
-    deleteUser: (id) => q('DELETE FROM users WHERE id = ?').run(id),
+    deleteUser(id) {
+      transaction(db, () => {
+        q('DELETE FROM login_links WHERE email = (SELECT email FROM users WHERE id = ?)').run(id);
+        q('DELETE FROM users WHERE id = ?').run(id);
+      });
+    },
     userHasActiveDraw: (userId) => !!q(`SELECT 1 FROM participants p JOIN events e ON e.id = p.event_id
       WHERE p.user_id = ? AND e.status = 'drawn'`).get(userId),
 
@@ -73,9 +79,12 @@ export function createStore(db, cipher) {
       return row;
     },
     deleteSession: (token) => q('DELETE FROM sessions WHERE id = ?').run(sha256(token)),
+    /** Keeps the current session as it is, so this cannot be used to extend a stolen one. */
+    deleteOtherSessions: (userId, sessionId) => q('DELETE FROM sessions WHERE user_id = ? AND id != ?').run(userId, sessionId),
     purgeExpired() {
       q('DELETE FROM sessions WHERE expires_at < ?').run(now());
       q('DELETE FROM password_resets WHERE expires_at < ?').run(now());
+      q('DELETE FROM login_links WHERE expires_at < ?').run(now());
     },
 
     // ---------- password resets ----------
@@ -89,6 +98,28 @@ export function createStore(db, cipher) {
     passwordResetUser(token) {
       const row = q('SELECT * FROM password_resets WHERE token_hash = ?').get(sha256(String(token)));
       return row && row.expires_at > now() ? store.userById(row.user_id) : null;
+    },
+
+    // ---------- one-time links (no password): joining a group or logging in ----------
+    createLoginLink({ purpose = 'participant', email, name = '', eventId = null, next = '/', hours }) {
+      const token = randomToken();
+      q('DELETE FROM login_links WHERE email = ? AND purpose = ? AND event_id IS ?').run(email, purpose, eventId);
+      q('INSERT INTO login_links (token_hash, purpose, email, name, event_id, next, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(sha256(token), purpose, email, name, eventId, next, now() + hours * 3600_000);
+      return token;
+    },
+    /** Read-only, safe for GET: mail scanners open links without any user action. */
+    loginLink(token) {
+      const row = q('SELECT * FROM login_links WHERE token_hash = ?').get(sha256(String(token)));
+      return row && row.expires_at > now() ? row : null;
+    },
+    /** Atomic: of two simultaneous requests only one gets the row. */
+    consumeLoginLink(token) {
+      const row = q('DELETE FROM login_links WHERE token_hash = ? RETURNING *').get(sha256(String(token)));
+      if (!row || row.expires_at <= now()) return null;
+      // One confirmed link retires all others for this address (e.g. in an old mail).
+      q('DELETE FROM login_links WHERE email = ?').run(row.email);
+      return row;
     },
 
     // ---------- events ----------
@@ -105,7 +136,13 @@ export function createStore(db, cipher) {
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
           data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, id);
     },
-    rotateInvite: (id) => q('UPDATE events SET invite_token = ? WHERE id = ?').run(randomToken(18), id),
+    rotateInvite(id) {
+      transaction(db, () => {
+        q('UPDATE events SET invite_token = ? WHERE id = ?').run(randomToken(18), id);
+        // Links requested through the old invite must stop working with it.
+        q('DELETE FROM login_links WHERE event_id = ?').run(id);
+      });
+    },
     openEventsWithDeadline: () => q("SELECT * FROM events WHERE status = 'open' AND signup_deadline IS NOT NULL").all(),
     setAutoDraw: (id, on) => q('UPDATE events SET auto_draw = ? WHERE id = ?').run(on ? 1 : 0, id),
     markReminderSent: (id) => q('UPDATE events SET reminder_sent = 1 WHERE id = ?').run(id),
@@ -132,6 +169,9 @@ export function createStore(db, cipher) {
     participantFor: (eventId, userId) => q('SELECT * FROM participants WHERE event_id = ? AND user_id = ?').get(eventId, userId),
     participantById: (id) => q(`SELECT p.*, u.name, u.email FROM participants p JOIN users u ON u.id = p.user_id
       WHERE p.id = ?`).get(id),
+    /** Row ids can be reused after a deletion, so an id from an assignment must be checked against its group. */
+    participantInEvent: (eventId, id) => q(`SELECT p.*, u.name, u.email FROM participants p JOIN users u ON u.id = p.user_id
+      WHERE p.id = ? AND p.event_id = ?`).get(id, eventId),
     participants: (eventId) => q(`SELECT p.*, u.name, u.email FROM participants p JOIN users u ON u.id = p.user_id
       WHERE p.event_id = ? ORDER BY u.name COLLATE NOCASE`).all(eventId),
     removeParticipant: (id) => q('DELETE FROM participants WHERE id = ?').run(id),

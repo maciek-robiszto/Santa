@@ -77,5 +77,7 @@ test('validators', () => {
   assert.equal(v.url('instagram.com/maker').value, 'https://instagram.com/maker');
   assert.ok(v.url('javascript:alert(1)').error);
   assert.ok(v.email('nope').error);
+  // Nothing the mailer could read as a second recipient or a display name.
+  for (const bad of ['a,b@test.pl', 'ofiara<atak@test.pl>', 'a;b@test.pl', 'x@test.pl,y@test.pl', '"a"@test.pl']) assert.ok(v.email(bad).error, bad);
   assert.equal(v.text('a\r\nb\u0000', 10).value, 'a\nb');
 });

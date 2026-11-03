@@ -194,7 +194,7 @@ export function manageRoutes({ store, config, mailer, limiter }) {
     if (error) return renderEvent(req, res, { errors: { reveal: error } }, 422);
 
     const otherId = mode === 'recipient' ? store.recipientIdOf(event.id, subject.id) : store.santaOf(event.id, subject.id)?.giver_id;
-    const other = otherId && store.participantById(otherId);
+    const other = otherId && store.participantInEvent(event.id, otherId);
     const what = mode === 'recipient' ? `kogo obdarowuje ${subject.name}` : `kto jest Mikołajem ${subject.name}`;
     store.audit({ eventId: event.id, actor: req.user, action: 'admin.reveal', detail: `${what}. Powód: ${reason.value}`, isPublic: true });
     for (const p of store.participants(event.id)) {

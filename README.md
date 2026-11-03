@@ -6,7 +6,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 
 - **Samoobsługowe grupy** – każdy zakłada konto, tworzy grupę (np. dla znajomych, pracy, hackerspace’u) i wysyła link z zaproszeniem. Organizator zarządza tylko swoimi grupami i może sam brać udział w losowaniu.
 - **Role** – *uczestnik*; *organizator* (twórca grupy: ustawienia, wykluczenia, losowanie, awaryjny podgląd jego grupy); *superadmin* strony (widzi listę wszystkich grup, może je usuwać, jako jedyny generuje linki resetu hasła). Utworzenie superadmina: `scripts/create-admin.js`.
-- **Zaproszenie linkiem** – uczestnicy zakładają konto (e-mail + hasło) prosto ze strony zaproszenia.
+- **Zaproszenie linkiem, bez hasła** – organizator wysyła jeden link grupy. Uczestnik podaje imię i e-mail, potwierdza jednorazowym linkiem z maila i jest w grze. Hasło ma tylko organizator (i superadmin). Na innym urządzeniu uczestnik prosi o nowy link na stronie logowania. Bez skonfigurowanego SMTP zostaje formularz z hasłem.
 - **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio.
 - **Spotkanie na żywo** – miejsce i data wymiany w opisie wydarzenia; bez adresów do wysyłki (mniej danych osobowych).
 - **Termin zapisów i automatyczne losowanie** – o północy po dniu „Zapisy do” aplikacja sama losuje pary i wysyła maile do wszystkich. Dwa dni przed terminem osoby z pustym profilem dostają przypomnienie. Jeśli losowanie się nie uda (np. mniej niż 3 osoby), admin dostaje maila i losuje ręcznie. Można też losować ręcznie w dowolnym momencie.
@@ -27,10 +27,13 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 | Ktoś podejrzy, kto kogo wylosował | Odbiorca w tabeli `assignments` jest szyfrowany **AES‑256‑GCM** (klucz poza bazą, AAD wiąże szyfrogram z wierszem). Admin **nie ma** widoku listy par. |
 | Admin „po cichu” sprawdza pary | Jedyna droga to **awaryjny podgląd**: jedna para na raz, wymaga hasła i powodu, jest **publicznie widoczny w dzienniku** każdego uczestnika + e‑mail do wszystkich. Wygenerowanie linku resetu hasła dla uczestnika (czyli możliwość wejścia na jego konto) też jest publicznie logowane. Anulowanie losowania – również. |
 | Wyciek bazy / kopii | Profile, pary i wiadomości są szyfrowane. Hasła: **scrypt** (N=2¹⁵). Sesje i tokeny resetu przechowywane jako SHA‑256. `secure_delete` w SQLite. |
+| Zajęcie cudzego adresu lub wejście na cudze konto | Konto powstaje dopiero po potwierdzeniu linku z maila, także konto organizatora; hasło organizator ustawia już po potwierdzeniu. Link grupy sam nie daje dostępu do niczyjego konta. Linki są jednorazowe, w bazie jako SHA-256, ważne 30 minut przy logowaniu i 3 dni przy pierwszym zapisie; samo otwarcie (np. przez skaner poczty) ich nie zużywa. Nowy link grupy unieważnia oczekujące potwierdzenia. Konta z hasłem nie da się otworzyć linkiem. Adresu nie można zmienić: jest potwierdzony raz, przy zakładaniu konta. |
 | Przejęcie sesji / CSRF / XSS | Ciasteczka `__Host-`, `HttpOnly`, `Secure`, `SameSite`; token CSRF + sprawdzanie `Origin`; ścisły CSP (`script-src 'self'`), auto‑escaping szablonów, linki tylko `http(s)` z `rel="noopener noreferrer nofollow ugc"`. |
 | Brute force | Limity prób logowania (IP + e‑mail), rejestracji, resetu, wiadomości, podglądu awaryjnego; stały czas odpowiedzi dla nieistniejących kont. |
 | Inne | HSTS, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin` (tokeny z URL nie wyciekają), `Cache-Control: no-store`, brak logów dostępu w Caddy, kontener read‑only bez uprawnień. |
 
+> Uczciwie: uczestnik bez hasła jest tak bezpieczny jak jego skrzynka pocztowa. Kto ma dostęp do skrzynki, może się zalogować, a sesja działa domyślnie 30 dni (na stronie Konto można wylogować inne urządzenia).
+>
 > Uczciwie: osoba z dostępem do serwera **i** do `ENCRYPTION_KEY` technicznie może odszyfrować dane. Trzymaj klucz tylko w `.env` na serwerze i **osobno** od kopii zapasowych.
 
 **RODO / minimalizacja danych:** uczestnik może usunąć konto (poza czasem trwającego losowania), admin może po zabawie usunąć całe wydarzenie razem z profilami i wiadomościami.
@@ -51,7 +54,7 @@ Skrypt tworzy `.env` (z wygenerowanym `ENCRYPTION_KEY`), buduje i uruchamia apli
 - **czysty serwer** – skrypt zaproponuje wbudowany Caddy z automatycznym HTTPS.
 
 Aktualizacja: `git pull && bash deploy/install.sh` (dane i `.env` zostają).
-Poczta: odkomentuj `SMTP_URL` i `MAIL_FROM` w `.env`, potem `docker compose up -d`.
+Poczta: odkomentuj `SMTP_URL` i `MAIL_FROM` w `.env`, potem `docker compose up -d`. **Bez SMTP nie ma potwierdzania adresów:** obowiązuje wtedy zapis z hasłem, a e-mail nie jest sprawdzany, więc na publicznym serwerze poczta powinna być włączona.
 
 ### Kopie zapasowe
 

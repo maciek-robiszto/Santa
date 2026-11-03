@@ -33,7 +33,7 @@ export function eventRoutes({ store, config, mailer, limiter }) {
     };
     if (event.status !== 'open') {
       const recipientId = store.recipientIdOf(event.id, me.id);
-      const recipient = recipientId && store.participantById(recipientId);
+      const recipient = recipientId && store.participantInEvent(event.id, recipientId);
       if (recipient) {
         ctx.recipient = recipient;
         ctx.recipientProfile = store.profile(recipient);
@@ -45,7 +45,7 @@ export function eventRoutes({ store, config, mailer, limiter }) {
         ctx.santaGiftStatus = santa.gift_status;
         ctx.santaThread = store.thread(event.id, santa.giver_id);
         if (event.status === 'finished' && event.reveal_santas) {
-          ctx.revealedSanta = store.participantById(santa.giver_id)?.name;
+          ctx.revealedSanta = store.participantInEvent(event.id, santa.giver_id)?.name;
         }
       }
     }
@@ -58,7 +58,7 @@ export function eventRoutes({ store, config, mailer, limiter }) {
 
   r.get('/events/:id/label', requireUser, load, (req, res) => {
     const recipientId = req.event.status !== 'open' && store.recipientIdOf(req.event.id, req.me.id);
-    const recipient = recipientId && store.participantById(recipientId);
+    const recipient = recipientId && store.participantInEvent(req.event.id, recipientId);
     if (!recipient) return notFound(res);
     res.page('Etykieta na prezent', giftLabelPage({ event: req.event, recipient, siteName: config.siteName }));
   });
@@ -105,7 +105,7 @@ export function eventRoutes({ store, config, mailer, limiter }) {
     if (!giverId) return notFound(res);
 
     store.addMessage(event.id, giverId, req.body.to === 'recipient', body.value);
-    const target = notifyId && store.participantById(notifyId);
+    const target = notifyId && store.participantInEvent(event.id, notifyId);
     if (target) {
       mailer.send({
         to: target.email,

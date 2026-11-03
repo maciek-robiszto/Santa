@@ -91,6 +91,20 @@ const MIGRATIONS = [
   // v4: self-service groups – every event has an organizer (owner).
   `ALTER TABLE events ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
    CREATE INDEX events_owner ON events(owner_user_id);`,
+  // v5: one-time links sent by e-mail. An account is created only after its link
+  // is confirmed, so an unverified address never owns anything. No password is
+  // ever stored here: it is chosen on the confirmation page, by the mailbox owner.
+  // password_hash = '' means a participant without a password.
+  `CREATE TABLE login_links (
+     token_hash TEXT PRIMARY KEY,
+     purpose TEXT NOT NULL CHECK (purpose IN ('participant', 'organizer')),
+     email TEXT NOT NULL COLLATE NOCASE,
+     name TEXT NOT NULL DEFAULT '',
+     event_id INTEGER REFERENCES events(id) ON DELETE CASCADE,
+     next TEXT NOT NULL DEFAULT '/',
+     expires_at INTEGER NOT NULL
+   );
+   CREATE INDEX login_links_email ON login_links(email);`,
 ];
 
 export function openDb(file) {

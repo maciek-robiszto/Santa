@@ -55,9 +55,19 @@ export function homeAnon() {
   </section>`;
 }
 
-export function loginPage({ csrf, email = '', error, next = '/' }) {
-  return html`<section class="card narrow">
+export function loginPage({ csrf, email = '', error, next = '/', mailEnabled = false, linkSent = false }) {
+  return html`${mailEnabled ? html`<section class="card narrow">
     <h1>Zaloguj się</h1>
+    ${linkSent ? html`<p class="flash flash-ok">Jeśli uczestniczysz bez hasła, wysłaliśmy na ten adres jednorazowy link (ważny 30 minut).</p>` : ''}
+    <p>Bierzesz udział w grupie? Hasło nie jest potrzebne. Podaj e-mail z zapisów, a wyślemy Ci link do logowania.</p>
+    <form method="post" action="/login/link">
+      ${csrfField(csrf)}
+      ${input({ label: 'E-mail', name: 'email', type: 'email', required: true, autocomplete: 'username' })}
+      <button class="btn btn-primary">Wyślij link</button>
+    </form>
+  </section>` : ''}
+  <section class="card narrow">
+    ${mailEnabled ? html`<h2>Organizujesz grupę? Użyj hasła</h2>` : html`<h1>Zaloguj się</h1>`}
     ${error ? html`<p class="flash flash-error">${error}</p>` : ''}
     <form method="post" action="/login${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}">
       ${csrfField(csrf)}
@@ -69,7 +79,7 @@ export function loginPage({ csrf, email = '', error, next = '/' }) {
   </section>`;
 }
 
-export function registerPage({ csrf, next = '/', values = {}, errors = {} }) {
+export function registerPage({ csrf, next = '/', mailEnabled = false, values = {}, errors = {} }) {
   return html`<section class="card narrow">
     <p class="kicker">Nowe konto</p>
     <h1>Załóż konto</h1>
@@ -77,10 +87,12 @@ export function registerPage({ csrf, next = '/', values = {}, errors = {} }) {
       ${csrfField(csrf)}
       ${input({ label: 'Imię / ksywka', name: 'name', value: values.name, required: true, max: 60, error: errors.name, autocomplete: 'nickname', hint: 'Tak zobaczą Cię inni w grupie.' })}
       ${input({ label: 'E-mail', name: 'email', type: 'email', value: values.email, required: true, max: 200, error: errors.email, autocomplete: 'email' })}
+      ${mailEnabled ? html`<p class="hint">Wyślemy Ci link. Hasło ustawisz po potwierdzeniu adresu.</p>` : html`
       ${input({ label: 'Hasło', name: 'password', type: 'password', required: true, min: 10, error: errors.password, autocomplete: 'new-password', hint: 'Min. 10 znaków.' })}
       <label class="check"><input type="checkbox" name="consent" value="1" required>
         Zgadzam się na przetwarzanie moich danych na potrzeby zabawy. Mogę je usunąć w każdej chwili.</label>
       ${errors.consent ? html`<p class="error">${errors.consent}</p>` : ''}
+      `}
       <button class="btn btn-primary">Załóż konto</button>
     </form>
     <p class="hint">Masz już konto? <a href="/login${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}">Zaloguj się</a>.</p>
@@ -112,7 +124,37 @@ export function resetPage({ csrf, token, error }) {
   </section>`;
 }
 
-export function joinPage({ csrf, event, user, values = {}, errors = {} }) {
+export function linkSentPage({ event, email }) {
+  return html`<section class="card narrow">
+    ${event ? html`<p class="kicker">zaproszenie</p>` : ''}
+    <h1>Sprawdź skrzynkę 📬</h1>
+    <p>Wysłaliśmy wiadomość na <b>${email}</b>. ${event ? html`Otwórz link z maila, żeby dołączyć do „${event.name}”.
+    <b>Zapis liczy się dopiero po potwierdzeniu.</b>` : 'Otwórz link z maila, żeby dokończyć.'}</p>
+    <p class="hint">Nic nie przyszło? Sprawdź spam albo wypełnij formularz jeszcze raz.</p>
+  </section>`;
+}
+
+export function linkPage({ csrf, token, link, event, isNew, viewer, values = {}, errors = {} }) {
+  const organizer = link.purpose === 'organizer';
+  const title = organizer ? 'Załóż konto organizatora' : event ? `Dołączasz do „${event.name}”` : 'Logowanie';
+  const switching = viewer && viewer.email.toLowerCase() !== link.email.toLowerCase();
+  return html`<section class="card narrow">
+    <h1>${title}</h1>
+    <p>Wejdziesz jako <b>${link.email}</b>. Jeśli to nie Twój adres, zamknij tę stronę.</p>
+    ${switching ? html`<p class="flash flash-error">Jesteś teraz zalogowany(-a) jako ${viewer.email}. Potwierdzenie przełączy Cię na inne konto.</p>` : ''}
+    <form method="post" action="/link/${token}">${csrfField(csrf)}
+      ${isNew ? html`
+        ${input({ label: 'Imię / ksywka', name: 'name', value: values.name ?? link.name, required: true, max: 60, error: errors.name, autocomplete: 'nickname', hint: 'Tak zobaczą Cię inni uczestnicy.' })}
+        ${organizer ? input({ label: 'Ustaw hasło', name: 'password', type: 'password', required: true, min: 10, error: errors.password, autocomplete: 'new-password', hint: 'Min. 10 znaków.' }) : ''}
+        <label class="check"><input type="checkbox" name="consent" value="1" required>
+          Zgadzam się na przetwarzanie moich danych na potrzeby tej zabawy. Mogę je usunąć w każdej chwili.</label>
+        ${errors.consent ? html`<p class="error">${errors.consent}</p>` : ''}` : ''}
+      <button class="btn btn-primary">${organizer ? 'Załóż konto' : event ? 'Dołączam! 🎁' : 'Wejdź'}</button>
+    </form>
+  </section>`;
+}
+
+export function joinPage({ csrf, event, user, mailEnabled = false, values = {}, errors = {} }) {
   const closed = signupClosed(event);
   return html`<section class="grid-2">
     <div class="card">
@@ -129,16 +171,17 @@ export function joinPage({ csrf, event, user, values = {}, errors = {} }) {
           <button class="btn btn-primary">Dołączam! 🎁</button>
         </form>`
       : html`
-        <h2>Załóż konto i dołącz</h2>
+        <h2>${mailEnabled ? 'Dołącz' : 'Załóż konto i dołącz'}</h2>
+        ${mailEnabled ? html`<p>Bez hasła i zakładania konta. Wyślemy Ci link, którym potwierdzisz adres e-mail.</p>` : ''}
         <form method="post" action="/join/${event.invite_token}">
           ${csrfField(csrf)}
           ${errors.form ? html`<p class="flash flash-error">${errors.form}</p>` : ''}
           ${input({ label: 'Imię / ksywka', name: 'name', value: values.name, required: true, max: 60, error: errors.name, autocomplete: 'nickname', hint: 'Tak zobaczą Cię inni uczestnicy.' })}
           ${input({ label: 'E-mail', name: 'email', type: 'email', value: values.email, required: true, max: 200, error: errors.email, autocomplete: 'email' })}
-          ${input({ label: 'Hasło', name: 'password', type: 'password', required: true, min: 10, error: errors.password, autocomplete: 'new-password', hint: 'Min. 10 znaków.' })}
-          <label class="check"><input type="checkbox" name="consent" value="1" required>
+          ${mailEnabled ? '' : input({ label: 'Hasło', name: 'password', type: 'password', required: true, min: 10, error: errors.password, autocomplete: 'new-password', hint: 'Min. 10 znaków.' })}
+          ${mailEnabled ? '' : html`<label class="check"><input type="checkbox" name="consent" value="1" required>
             Zgadzam się na przetwarzanie moich danych na potrzeby tej zabawy. Mogę je usunąć w każdej chwili.</label>
-          ${errors.consent ? html`<p class="error">${errors.consent}</p>` : ''}
+          ${errors.consent ? html`<p class="error">${errors.consent}</p>` : ''}`}
           <button class="btn btn-primary">Dołączam! 🎁</button>
         </form>
         <p class="hint">Masz już konto? <a href="/login?next=/join/${event.invite_token}">Zaloguj się</a>.</p>`}
@@ -282,11 +325,16 @@ export function accountPage({ csrf, user, errors = {}, values = {}, mailEnabled 
       <form method="post" action="/account">
         ${csrfField(csrf)}
         ${input({ label: 'Imię / ksywka', name: 'name', value: values.name ?? user.name, required: true, max: 60, error: errors.name })}
-        ${input({ label: 'E-mail', name: 'email', type: 'email', value: values.email ?? user.email, required: true, max: 200, error: errors.email })}
+        <p>E-mail: <b>${user.email}</b></p>
+        <p class="hint">Potwierdzony przy zakładaniu konta. Nie można go zmienić, bo służy do logowania.</p>
         <button class="btn btn-primary">Zapisz</button>
       </form>
     </section>
-    <section class="card">
+    ${!user.password_hash ? html`<section class="card">
+      <h2>Hasło</h2>
+      <p>Uczestnik go nie potrzebuje: logujesz się linkiem z maila. Hasło przyda się tylko, jeśli chcesz zorganizować własną grupę.</p>
+      <p><a class="btn" href="/forgot">Ustaw hasło</a></p>
+    </section>` : html`<section class="card">
       <h2>Zmiana hasła</h2>
       <form method="post" action="/account/password">
         ${csrfField(csrf)}
@@ -296,14 +344,23 @@ export function accountPage({ csrf, user, errors = {}, values = {}, mailEnabled 
         <button class="btn btn-primary">Zmień hasło</button>
       </form>
       <p class="hint">Po zmianie hasła wylogujemy Cię ze wszystkich urządzeń.</p>
-    </section>
+    </section>`}
   </div>
+  <section class="card">
+    <h2>Inne urządzenia</h2>
+    <p>Logowałeś(-aś) się na cudzym komputerze albo zgubiłeś(-aś) telefon? Wyloguj wszystkie inne urządzenia.</p>
+    <form method="post" action="/account/logout-all">${csrfField(csrf)}
+      <button class="btn">Wyloguj inne urządzenia</button>
+    </form>
+  </section>
   <section class="card card-danger">
     <h2>Usuń konto</h2>
     <p>Usuwa konto, profile i wiadomości. Nie da się tego cofnąć. Jeśli trwa losowanie, w którym bierzesz udział, najpierw daj znać organizatorowi.</p>
     <form method="post" action="/account/delete" data-confirm="Na pewno usunąć konto i wszystkie dane?">
       ${csrfField(csrf)}
-      ${input({ label: 'Potwierdź hasłem', name: 'password', type: 'password', required: true, error: errors.delete, autocomplete: 'current-password' })}
+      ${user.password_hash
+        ? input({ label: 'Potwierdź hasłem', name: 'password', type: 'password', required: true, error: errors.delete, autocomplete: 'current-password' })
+        : input({ label: 'Potwierdź, wpisując swój e-mail', name: 'confirm_email', type: 'email', required: true, error: errors.delete })}
       <button class="btn btn-danger">Usuń konto</button>
     </form>
   </section>`;

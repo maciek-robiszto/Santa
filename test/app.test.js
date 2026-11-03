@@ -47,7 +47,7 @@ test('admin logs in and creates event', async () => {
 test('participants join via invite and fill profiles', async () => {
   for (const name of ['Ala', 'Bartek', 'Celina', 'Darek', 'Ewa']) {
     const c = new Client();
-    const r = await c.post(`/join/${invite}`, { name, email: `${name.toLowerCase()}@test.pl`, password: 'haslo-testowe-1', consent: '1' });
+    const r = await t.joinByMail(c, invite, { name, email: `${name.toLowerCase()}@test.pl` });
     assert.equal(r.status, 303, r.text);
     const p = await c.post(`/events/${eventId}/profile`, {
       about: `Jestem ${name} <script>alert(1)</script>`, passions: 'druk 3D', wishes: `sekret-${name}`, avoid: '', social: 'github.com/x',
@@ -55,15 +55,18 @@ test('participants join via invite and fill profiles', async () => {
     assert.equal(p.status, 303);
     people.push({ name, c });
   }
-  const dup = await new Client().post(`/join/${invite}`, { name: 'X', email: 'ala@test.pl', password: 'haslo-testowe-1', consent: '1' });
-  assert.equal(dup.status, 422);
+  // Someone else's address gives no session and does not change the account.
+  const dup = new Client();
+  assert.equal((await dup.post(`/join/${invite}`, { name: 'X', email: 'ala@test.pl' })).status, 200);
+  assert.equal((await dup.get(`/events/${eventId}`)).status, 303);
+  assert.equal(store.userByEmail('ala@test.pl').name, 'Ala');
 });
 
 test('participants cannot manage a group they do not organize', async () => {
   assert.equal((await people[0].c.get(`/manage/events/${eventId}`)).status, 404);
   assert.equal((await people[0].c.post(`/manage/events/${eventId}/draw`, {})).status, 404);
   const outsider = new Client();
-  await outsider.post(`/join/${invite}`, { name: 'Obcy', email: 'obcy@test.pl', password: 'haslo-testowe-1', consent: '1' });
+  await t.joinByMail(outsider, invite, { name: 'Obcy', email: 'obcy@test.pl' });
   await outsider.post(`/events/${eventId}/leave`, {});
   assert.equal((await outsider.get(`/events/${eventId}`)).status, 404);
 });
@@ -136,7 +139,7 @@ test('break-glass reveal needs password and is public', async () => {
 });
 
 test('cannot delete account during active draw; reset draw clears pairs', async () => {
-  const r = await people[2].c.post('/account/delete', { password: 'haslo-testowe-1' });
+  const r = await people[2].c.post('/account/delete', { confirm_email: 'celina@test.pl' });
   assert.equal(r.status, 422);
   await admin.post(`/manage/events/${eventId}/reset`, { reason: 'ktoś dołącza' });
   assert.equal(store.db.prepare('SELECT COUNT(*) n FROM assignments').get().n, 0);

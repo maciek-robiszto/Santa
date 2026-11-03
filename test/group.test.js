@@ -43,7 +43,7 @@ test(`${N} people join concurrently, 2/3 fill their profile`, async () => {
   await Promise.all(Array.from({ length: N }, async (_, i) => {
     const c = t.client();
     const name = `Osoba${String(i + 1).padStart(2, '0')}`;
-    const r = await c.post(`/join/${invite}`, { name, email: `${name.toLowerCase()}@test.pl`, password: 'haslo-testowe-1', consent: '1' });
+    const r = await t.joinByMail(c, invite, { name, email: `${name.toLowerCase()}@test.pl` });
     assert.equal(r.status, 303);
     if (i % 3 !== 0) {
       await c.post(`/events/${eventId}/profile`, { about: `Jestem ${name}`, passions: 'elektronika', wishes: `marzenie-${name}`, avoid: '', social: '' });
@@ -82,7 +82,7 @@ test('after the deadline: signup closed, automatic draw, mail to everyone', asyn
   for (const m of t.sent) {
     assert.ok(!/Osoba\d\d/.test(m.text.replace(/Cześć Osoba\d\d/, '')), 'mail must not reveal the recipient');
   }
-  const late = await t.client().post(`/join/${invite}`, { name: 'Spóźniony', email: 'late@test.pl', password: 'haslo-testowe-1', consent: '1' });
+  const late = await t.client().post(`/join/${invite}`, { name: 'Spóźniony', email: 'late@test.pl' });
   assert.equal(late.status, 303);
   assert.equal(t.store.userByEmail('late@test.pl'), undefined);
 });

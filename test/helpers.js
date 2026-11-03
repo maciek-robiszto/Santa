@@ -10,7 +10,7 @@ import { createApp } from '../src/app.js';
 
 export async function startTestApp() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'santa-test-'));
-  const config = loadConfig({ DATA_DIR: dir, ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), APP_URL: 'http://localhost:0' });
+  const config = loadConfig({ DATA_DIR: dir, ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), APP_URL: 'http://localhost:0', MAIL_PER_IP_HOUR: '10000' });
   const store = createStore(openDb(config.dbFile), createCipher(config.encryptionKey));
   const sent = [];
   const mailer = { enabled: true, send: async (m) => { sent.push(m); } };
@@ -21,9 +21,25 @@ export async function startTestApp() {
   return {
     dir, config, store, mailer, sent, base,
     client: () => new Client(base),
+    /** Full path of a participant: form under the invite link, then the link from the mail. */
+    async joinByMail(c, invite, { name, email }) {
+      const r = await c.post(`/join/${invite}`, { name, email });
+      if (r.status !== 200) return r;
+      const token = linkFrom(sent.findLast((m) => m.to === email));
+      await c.get(`/link/${token}`);
+      return c.post(`/link/${token}`, { name, consent: '1' });
+    },
+    /** Organizer account: address first, password only after confirming the link. */
+    async registerByMail(c, { name, email, password }, next = '/') {
+      await c.post(`/register?next=${encodeURIComponent(next)}`, { name, email });
+      const token = linkFrom(sent.findLast((m) => m.to === email));
+      return c.post(`/link/${token}`, { name, password, consent: '1' });
+    },
     close() { server.close(); fs.rmSync(dir, { recursive: true, force: true }); },
   };
 }
+
+export const linkFrom = (mail) => mail.text.match(/\/link\/([\w-]+)/)?.[1];
 
 export class Client {
   cookies = new Map();

@@ -6,7 +6,7 @@ export function announceDraw({ store, mailer, config }, event) {
     mailer.send({
       to: p.email,
       subject: `${config.siteName}: losowanie zakończone 🎁`,
-      text: `Cześć ${p.name}!\n\nLosowanie w „${event.name}” się odbyło. Zaloguj się, żeby zobaczyć, kogo obdarowujesz:\n${config.origin}/events/${event.id}\n`,
+      text: `Cześć ${p.name}!\n\nLosowanie w „${event.name}” się odbyło. Otwórz stronę, żeby zobaczyć, kogo obdarowujesz:\n${config.origin}/events/${event.id}\n`,
     });
   }
 }

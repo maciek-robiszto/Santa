@@ -40,6 +40,7 @@ export function loadConfig(env = process.env) {
     smtpUrl: env.SMTP_URL || '',
     mailFrom: env.MAIL_FROM || '',
     sessionDays: Number(env.SESSION_DAYS || 30),
+    mailPerIpHour: Number(env.MAIL_PER_IP_HOUR || 50),
     // Self-service: anyone can sign up and create their own group.
     openRegistration: (env.OPEN_REGISTRATION ?? 'true') !== 'false',
     groupCreation: env.GROUP_CREATION === 'admins' ? 'admins' : 'everyone',

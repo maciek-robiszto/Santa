@@ -15,7 +15,7 @@ export function line(v, max, { required = false, label = 'To pole' } = {}) {
 
 export function email(v) {
   const s = String(v ?? '').trim().toLowerCase();
-  if (s.length > 200 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return { error: 'Podaj poprawny e-mail', value: s };
+  if (s.length > 200 || !/^[^\s@,;:<>()"]+@[^\s@,;:<>()"]+\.[^\s@,;:<>()"]+$/.test(s)) return { error: 'Podaj poprawny e-mail', value: s };
   return { value: s };
 }
 

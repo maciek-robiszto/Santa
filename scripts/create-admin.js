@@ -26,8 +26,13 @@ if (email.error) { console.error('Podaj --email'); process.exit(1); }
 
 const existing = store.userByEmail(email.value);
 if (existing) {
+  // The account may have been registered by someone else with this address:
+  // the operator's password replaces theirs and drops their sessions and links.
+  const pw = v.password(process.env.ADMIN_PASSWORD ?? await askHidden('Nowe hasło admina (min. 10 znaków): '));
+  if (pw.error) { console.error(pw.error); process.exit(1); }
+  store.setPassword(existing.id, await hashPassword(pw.value));
   store.db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(existing.id);
-  console.log(`✔ ${existing.email} ma teraz uprawnienia admina.`);
+  console.log(`✔ ${existing.email} ma teraz uprawnienia admina i nowe hasło. Inne sesje wylogowane.`);
   process.exit(0);
 }
 

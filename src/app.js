@@ -61,7 +61,7 @@ export function createApp({ config, store, mailer }) {
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
     if (err.type === 'entity.too.large') return res.status(413).send('Za duże dane');
-    console.error('[error]', req.method, req.path, err.stack || err);
+    console.error('[error]', req.method, req.route?.path ?? '(bez trasy)', err.stack || err);
     if (res.headersSent) return;
     res.status(500).type('html').send('<h1>500</h1><p>Coś poszło nie tak. Spróbuj ponownie.</p>');
   });

@@ -25,7 +25,7 @@ export function requireAdmin(req, res, next) {
 /** Organizer of the group, or the site superadmin. */
 export const canManage = (user, event) => Boolean(user && event && (user.is_admin || event.owner_user_id === user.id));
 
-export const canCreateGroups = (config, user) => Boolean(user && (user.is_admin || config.groupCreation === 'everyone'));
+export const canCreateGroups = (config, user) => Boolean(user?.password_hash && (user.is_admin || config.groupCreation === 'everyone'));
 
 export const notFound = (res) => res.page('Nie znaleziono', errorPage(404, 'Nie ma tu takiej strony'), { status: 404 });
 
