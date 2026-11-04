@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createMailer } from '../src/mail.js';
 import crypto from 'node:crypto';
 import { drawAssignments, DrawError } from '../src/draw.js';
 import { createCipher, hashPassword, verifyPassword } from '../src/crypto.js';
@@ -80,4 +81,33 @@ test('validators', () => {
   // Nothing the mailer could read as a second recipient or a display name.
   for (const bad of ['a,b@test.pl', 'ofiara<atak@test.pl>', 'a;b@test.pl', 'x@test.pl,y@test.pl', '"a"@test.pl']) assert.ok(v.email(bad).error, bad);
   assert.equal(v.text('a\r\nb\u0000', 10).value, 'a\nb');
+});
+
+test('mail: temporary errors are retried, permanent ones are not, nothing private is logged', async () => {
+  const fail = (responseCode) => Object.assign(new Error('x'), { code: 'EENVELOPE', responseCode });
+  const run = async (script) => {
+    let calls = 0;
+    const transport = { sendMail: async () => { const step = script[calls++]; if (step) throw step; return { accepted: ['a'], rejected: [] }; } };
+    const logs = [];
+    const { info, error } = console;
+    console.info = (...a) => logs.push(a.join(' '));
+    console.error = (...a) => logs.push(a.join(' '));
+    try {
+      await createMailer({ siteName: 'S' }, { transport, retryDelays: [0, 0] }).send({ to: 'tajny@test.pl', subject: 'temat-tajny', text: 'link-tajny' });
+    } finally { Object.assign(console, { info, error }); }
+    assert.doesNotMatch(logs.join('\n'), /tajny/);
+    return { calls, logs: logs.join('\n') };
+  };
+  const recovered = await run([fail(421), fail(421), null]);
+  assert.equal(recovered.calls, 3);
+  assert.match(recovered.logs, /przyjęte przez serwer: 1/);
+  assert.doesNotMatch(recovered.logs, /błąd wysyłki/);
+  const network = await run([Object.assign(new Error('x'), { code: 'ECONNRESET' }), null]);
+  assert.equal(network.calls, 2);
+  const permanent = await run([fail(550)]);
+  assert.equal(permanent.calls, 1);
+  assert.match(permanent.logs, /błąd wysyłki: 550/);
+  const exhausted = await run([fail(421), fail(421), fail(421)]);
+  assert.equal(exhausted.calls, 3);
+  assert.match(exhausted.logs, /błąd wysyłki: 421/);
 });

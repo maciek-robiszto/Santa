@@ -1,7 +1,20 @@
 import nodemailer from 'nodemailer';
 
-export function createMailer(config) {
-  if (!config.smtpUrl) {
+// A few connections at a time: Gmail answers a burst (e.g. everyone's mail after a draw) with 421.
+function pooled(smtpUrl) {
+  const url = new URL(smtpUrl);
+  url.searchParams.set('pool', 'true');
+  url.searchParams.set('maxConnections', '2');
+  return url.toString();
+}
+
+const RETRY_DELAYS_MS = [5_000, 30_000, 120_000, 600_000];
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+// 5xx will not change on retry; 4xx and lost connections usually do.
+const isTransient = (err) => !(err.responseCode >= 500);
+
+export function createMailer(config, { transport, retryDelays = RETRY_DELAYS_MS } = {}) {
+  if (!config.smtpUrl && !transport) {
     return {
       enabled: false,
       async send({ to, subject }) {
@@ -9,17 +22,26 @@ export function createMailer(config) {
       },
     };
   }
-  const transport = nodemailer.createTransport(config.smtpUrl);
+  const smtp = transport ?? nodemailer.createTransport(pooled(config.smtpUrl));
   return {
     enabled: true,
     async send({ to, subject, text }) {
-      try {
-        const info = await transport.sendMail({ from: config.mailFrom || config.siteName, to, subject, text });
-        // No addresses or subjects: only whether the server accepted the message.
-        console.info(`[mail] przyjęte przez serwer: ${info.accepted.length}, odrzucone: ${info.rejected.length}`);
-      } catch (err) {
-        // Never log the message body: it may contain links with tokens.
-        console.error('[mail] błąd wysyłki:', err.code || err.message);
+      for (let attempt = 0; ; attempt++) {
+        try {
+          const info = await smtp.sendMail({ from: config.mailFrom || config.siteName, to, subject, text });
+          // No addresses or subjects: only whether the server accepted the message.
+          console.info(`[mail] przyjęte przez serwer: ${info.accepted.length}, odrzucone: ${info.rejected.length}`);
+          return;
+        } catch (err) {
+          const code = err.responseCode ?? err.code ?? 'nieznany';
+          if (!isTransient(err) || attempt >= retryDelays.length) {
+            // Never log the message body: it may contain links with tokens.
+            console.error('[mail] błąd wysyłki:', code);
+            return;
+          }
+          console.info(`[mail] ponawiam (kod ${code}, próba ${attempt + 2})`);
+          await sleep(retryDelays[attempt]);
+        }
       }
     },
   };
