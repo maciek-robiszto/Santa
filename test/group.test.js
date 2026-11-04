@@ -92,6 +92,7 @@ test('after the deadline: signup closed, automatic draw, mail to everyone', asyn
     const named = new Set(m.text.match(/Osoba\d\d/g));
     assert.deepEqual(named, new Set([giver.name, recipient.name]), 'only these two people appear');
     assert.doesNotMatch(m.subject, /Osoba\d\d/);
+    assert.doesNotMatch(m.text, /https?:\/\//, 'no link in the mail');
   }
   const late = await t.client().post(`/join/${invite}`, { name: 'Spóźniony', email: 'late@test.pl' });
   assert.equal(late.status, 303);

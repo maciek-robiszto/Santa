@@ -3,7 +3,7 @@ import { deadlineEnd } from './deadline.js';
 import { PROFILE_FIELDS } from './store.js';
 import { fmtDate } from './views/layout.js';
 
-function drawMail({ store, config }, event, giver) {
+function drawMail({ store }, event, giver) {
   const recipientId = store.recipientIdOf(event.id, giver.id);
   const recipient = recipientId && store.participantInEvent(event.id, recipientId);
   const profile = recipient ? store.profile(recipient) : {};
@@ -16,9 +16,9 @@ function drawMail({ store, config }, event, giver) {
   return [
     `Cześć ${giver.name}!`,
     `Losowanie w „${event.name}” się odbyło. Robisz prezent dla: ${recipient?.name ?? '(otwórz stronę grupy)'}`,
-    about ? `O tej osobie\n\n${about}` : 'Ta osoba nie uzupełniła jeszcze profilu. Zajrzyj na stronę grupy później.',
+    about ? `O tej osobie\n\n${about}` : 'Ta osoba nie uzupełniła jeszcze profilu.',
     meeting,
-    `Zachowaj to dla siebie 🤫 Aktualny profil i anonimowe pytania do tej osoby znajdziesz na stronie:\n${config.origin}/events/${event.id}`,
+    'Zachowaj to dla siebie 🤫',
   ].filter(Boolean).join('\n\n') + '\n';
 }
 
@@ -41,7 +41,7 @@ export function sendDrawMail({ store, mailer, config }, event, p) {
   return Promise.resolve(mailer.send({
     to: p.email,
     subject: `${config.siteName}: losowanie zakończone 🎁`,
-    text: drawMail({ store, config }, event, p),
+    text: drawMail({ store }, event, p),
     stillValid,
   })).then((ok) => {
     if (ok === null || !stillValid()) return;
