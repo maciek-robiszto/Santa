@@ -80,7 +80,18 @@ test('after the deadline: signup closed, automatic draw, mail to everyone', asyn
   assert.equal(t.sent.length, N);
   assert.deepEqual(new Set(t.sent.map((m) => m.to)), new Set(people.map((p) => p.email)));
   for (const m of t.sent) {
-    assert.ok(!/Osoba\d\d/.test(m.text.replace(/Cześć Osoba\d\d/, '')), 'mail must not reveal the recipient');
+    // Each mail names the drawn person and their profile, and nobody else's.
+    const giver = t.store.participants(eventId).find((p) => p.email === m.to);
+    const recipient = t.store.participantInEvent(eventId, t.store.recipientIdOf(eventId, giver.id));
+    assert.notEqual(recipient.id, giver.id);
+    assert.match(m.text, new RegExp(`Robisz prezent dla: ${recipient.name}\\b`));
+    assert.match(m.text, /Hackerspace/);
+    assert.match(m.text, /100 zł/);
+    if (recipient.profile_complete) assert.match(m.text, new RegExp(`marzenie-${recipient.name}\\b`));
+    else assert.match(m.text, /nie uzupełniła jeszcze profilu/);
+    const named = new Set(m.text.match(/Osoba\d\d/g));
+    assert.deepEqual(named, new Set([giver.name, recipient.name]), 'only these two people appear');
+    assert.doesNotMatch(m.subject, /Osoba\d\d/);
   }
   const late = await t.client().post(`/join/${invite}`, { name: 'Spóźniony', email: 'late@test.pl' });
   assert.equal(late.status, 303);

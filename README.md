@@ -16,7 +16,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 - **Status prezentu** (w produkcji / gotowy / wręczony) widoczny dla obdarowanego.
 - **Etykieta na prezent do druku** – duża zawieszka z otworem na sznurek i dwie naklejki „Dla: …” (bez imienia Mikołaja), żeby na spotkaniu każdy znalazł swoją paczkę.
 - **Opcjonalne ujawnienie Mikołajów** po zakończeniu zabawy.
-- **Powiadomienia e-mail** (opcjonalne SMTP): losowanie, nowa wiadomość, reset hasła.
+- **Powiadomienia e-mail** (opcjonalne SMTP): nowa wiadomość, reset hasła oraz **mail po losowaniu z wylosowaną osobą, jej profilem, terminem, miejscem i budżetem**, żeby nie trzeba było się logować.
 - Responsywność (mobile first), działa bez JavaScriptu.
 
 ## Model bezpieczeństwa
@@ -32,6 +32,8 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 | Brute force | Limity prób logowania (IP + e‑mail), rejestracji, resetu, wiadomości, podglądu awaryjnego; stały czas odpowiedzi dla nieistniejących kont. |
 | Inne | HSTS, `X-Frame-Options: DENY`, `Referrer-Policy: same-origin` (tokeny z URL nie wyciekają), `Cache-Control: no-store`, brak logów dostępu w Caddy, kontener read‑only bez uprawnień. |
 
+> Uczciwie: mail po losowaniu zawiera wylosowaną osobę i jej profil otwartym tekstem. Szyfrowanie w bazie chroni więc dane na serwerze, ale nie w skrzynkach. **Kto ma dostęp do skrzynki nadawcy (`MAIL_FROM`), widzi w „Wysłanych” wszystkie przydziały i profile ze wszystkich grup na tej stronie**, omijając awaryjny podgląd i dziennik. Najlepiej, żeby tej skrzynki nie otwierał nikt biorący udział w zabawie.
+>
 > Uczciwie: uczestnik bez hasła jest tak bezpieczny jak jego skrzynka pocztowa. Kto ma dostęp do skrzynki, może się zalogować, a sesja działa domyślnie 30 dni (na stronie Konto można wylogować inne urządzenia).
 >
 > Uczciwie: osoba z dostępem do serwera **i** do `ENCRYPTION_KEY` technicznie może odszyfrować dane. Trzymaj klucz tylko w `.env` na serwerze i **osobno** od kopii zapasowych.

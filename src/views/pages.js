@@ -295,7 +295,7 @@ export function eventPage(ctx) {
 
   <section class="card" id="profil">
     <h2>✏️ Mój profil</h2>
-    <p class="muted">Zobaczy go tylko osoba, która Cię wylosuje (i organizator w sytuacji awaryjnej). Możesz go zmieniać także po losowaniu.</p>
+    <p class="muted">Zobaczy go osoba, która Cię wylosuje: dostanie go też mailem zaraz po losowaniu (organizator może go zobaczyć w sytuacji awaryjnej). Możesz go zmieniać także później, ale zmiany będą już widoczne tylko na stronie.</p>
     ${canEditProfile ? html`<form method="post" action="/events/${event.id}/profile">
       ${csrfField(csrf)}
       ${PROFILE_FIELDS.map((f) => f.url

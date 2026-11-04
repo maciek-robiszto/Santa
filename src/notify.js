@@ -1,12 +1,35 @@
 import { DrawError } from './draw.js';
 import { deadlineEnd } from './deadline.js';
+import { PROFILE_FIELDS } from './store.js';
+import { fmtDate } from './views/layout.js';
 
+function drawMail({ store, config }, event, giver) {
+  const recipientId = store.recipientIdOf(event.id, giver.id);
+  const recipient = recipientId && store.participantInEvent(event.id, recipientId);
+  const profile = recipient ? store.profile(recipient) : {};
+  const about = PROFILE_FIELDS.filter((f) => profile[f.key]).map((f) => `${f.label}:\n${profile[f.key]}`).join('\n\n');
+  const meeting = [
+    event.budget && `Budżet: ${event.budget}`,
+    event.exchange_date && `Wymiana prezentów: ${fmtDate(event.exchange_date)}`,
+    event.location && `Miejsce: ${event.location}`,
+  ].filter(Boolean).join('\n');
+  return [
+    `Cześć ${giver.name}!`,
+    `Losowanie w „${event.name}” się odbyło. Robisz prezent dla: ${recipient?.name ?? '(otwórz stronę grupy)'}`,
+    about ? `O tej osobie\n\n${about}` : 'Ta osoba nie uzupełniła jeszcze profilu. Zajrzyj na stronę grupy później.',
+    meeting,
+    `Zachowaj to dla siebie 🤫 Aktualny profil i anonimowe pytania do tej osoby znajdziesz na stronie:\n${config.origin}/events/${event.id}`,
+  ].filter(Boolean).join('\n\n') + '\n';
+}
+
+// The mail carries the recipient and the profile in plain text: there is no need to
+// log in, but mailboxes (also "Sent" of the account sending it) keep this for good.
 export function announceDraw({ store, mailer, config }, event) {
   for (const p of store.participants(event.id)) {
     mailer.send({
       to: p.email,
       subject: `${config.siteName}: losowanie zakończone 🎁`,
-      text: `Cześć ${p.name}!\n\nLosowanie w „${event.name}” się odbyło. Otwórz stronę, żeby zobaczyć, kogo obdarowujesz:\n${config.origin}/events/${event.id}\n`,
+      text: drawMail({ store, config }, event, p),
     });
   }
 }
