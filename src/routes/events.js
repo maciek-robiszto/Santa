@@ -2,7 +2,7 @@ import { Router } from 'express';
 import * as v from '../validate.js';
 import { PROFILE_FIELDS, GIFT_STATUSES } from '../store.js';
 import { eventPage, giftLabelPage } from '../views/pages.js';
-import { requireUser, notFound, tooMany } from './helpers.js';
+import { requireUser, notFound, tooMany, canManage } from './helpers.js';
 
 export function eventRoutes({ store, config, mailer, limiter }) {
   const r = Router();
@@ -24,6 +24,7 @@ export function eventRoutes({ store, config, mailer, limiter }) {
       csrf: res.locals.csrf,
       event,
       me,
+      canManage: canManage(req.user, event),
       profile: store.profile(me),
       participants: store.participants(event.id),
       publicLog: store.auditLog(event.id, true),

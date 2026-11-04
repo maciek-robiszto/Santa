@@ -32,6 +32,9 @@ test('friends join through the link; organizer manages only own group', async ()
   friend = t.client();
   await t.joinByMail(friend, invite, { name: 'Tomek', email: 'tomek@test.pl' });
   assert.equal((await friend.get(`/manage/events/${groupId}`)).status, 404);
+  // The organizer finds the invite from the group page; a participant gets no such link.
+  assert.match((await org.get(`/events/${groupId}`)).text, new RegExp(`href="/manage/events/${groupId}"`));
+  assert.doesNotMatch((await friend.get(`/events/${groupId}`)).text, /href="\/manage\/events\//);
   // Organizing needs a password, set through a link sent to the verified address.
   assert.equal((await friend.post('/manage/events', { name: 'Bez hasła' })).status, 404);
   await friend.post('/forgot', { email: 'tomek@test.pl' });

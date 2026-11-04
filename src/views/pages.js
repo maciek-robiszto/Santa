@@ -239,7 +239,7 @@ function messageForm(csrf, eventId, to, placeholder) {
 }
 
 export function eventPage(ctx) {
-  const { csrf, event, me, profile, participants, recipient, recipientProfile, myGiftStatus, santaGiftStatus,
+  const { csrf, event, me, canManage, profile, participants, recipient, recipientProfile, myGiftStatus, santaGiftStatus,
     santaThread, recipientThread, publicLog, revealedSanta, errors = {} } = ctx;
   const canEditProfile = event.status !== 'finished';
   return html`
@@ -252,6 +252,12 @@ export function eventPage(ctx) {
   </div>
   ${event.description ? html`<p class="lead">${multiline(event.description)}</p>` : ''}
   ${eventMeta(event)}
+
+  ${canManage ? html`<section class="card">
+    <h2>🔗 Organizujesz tę grupę</h2>
+    <p>Link dla znajomych, lista uczestników i losowanie są w panelu organizatora.</p>
+    <p><a class="btn btn-primary" href="/manage/events/${event.id}">Zaproś znajomych i zarządzaj</a></p>
+  </section>` : ''}
 
   ${event.status !== 'open' && recipient ? html`
   <section class="card card-accent reveal" id="przydzial">
