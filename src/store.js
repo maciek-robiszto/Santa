@@ -1,5 +1,5 @@
 import { transaction } from './db.js';
-import { drawAssignments } from './draw.js';
+import { drawAssignments, DrawError } from './draw.js';
 import { randomToken, sha256 } from './crypto.js';
 
 export const PROFILE_FIELDS = [
@@ -125,16 +125,17 @@ export function createStore(db, cipher) {
     // ---------- events ----------
     createEvent(data) {
       const r = q(`INSERT INTO events (name, description, budget, signup_deadline, exchange_date, location,
-        reveal_santas, auto_draw, invite_token, owner_user_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        reveal_santas, auto_draw, invite_token, owner_user_id, approved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, randomToken(18), data.owner_user_id ?? null, now());
+          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, randomToken(18), data.owner_user_id ?? null, data.approved === false ? 0 : 1, now());
       return Number(r.lastInsertRowid);
     },
     updateEvent(id, data) {
       q(`UPDATE events SET name = ?, description = ?, budget = ?, signup_deadline = ?, exchange_date = ?,
-        location = ?, reveal_santas = ?, auto_draw = ?, reminder_sent = 0 WHERE id = ?`)
+        location = ?, reveal_santas = ?, auto_draw = ?,
+        reminder_sent = CASE WHEN signup_deadline IS ? THEN reminder_sent ELSE 0 END WHERE id = ?`)
         .run(data.name, data.description, data.budget, data.signup_deadline, data.exchange_date,
-          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, id);
+          data.location, data.reveal_santas ? 1 : 0, data.auto_draw ? 1 : 0, data.signup_deadline, id);
     },
     rotateInvite(id) {
       transaction(db, () => {
@@ -143,7 +144,8 @@ export function createStore(db, cipher) {
         q('DELETE FROM login_links WHERE event_id = ?').run(id);
       });
     },
-    openEventsWithDeadline: () => q("SELECT * FROM events WHERE status = 'open' AND signup_deadline IS NOT NULL").all(),
+    approveEvent: (id) => q('UPDATE events SET approved = 1 WHERE id = ?').run(id),
+    openEventsWithDeadline: () => q("SELECT * FROM events WHERE status = 'open' AND approved = 1 AND signup_deadline IS NOT NULL").all(),
     setAutoDraw: (id, on) => q('UPDATE events SET auto_draw = ? WHERE id = ?').run(on ? 1 : 0, id),
     markReminderSent: (id) => q('UPDATE events SET reminder_sent = 1 WHERE id = ?').run(id),
     admins: () => q('SELECT * FROM users WHERE is_admin = 1').all(),
@@ -151,7 +153,7 @@ export function createStore(db, cipher) {
     deleteEvent: (id) => q('DELETE FROM events WHERE id = ?').run(id),
     eventById: (id) => q('SELECT * FROM events WHERE id = ?').get(id),
     eventByInvite: (token) => q('SELECT * FROM events WHERE invite_token = ?').get(String(token)),
-    allEvents: () => q(`SELECT e.*, u.name AS owner_name, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
+    allEvents: () => q(`SELECT e.*, u.name AS owner_name, u.email AS owner_email, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
       FROM events e LEFT JOIN users u ON u.id = e.owner_user_id ORDER BY e.created_at DESC`).all(),
     eventsOwnedBy: (userId) => q(`SELECT e.*, (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
       FROM events e WHERE e.owner_user_id = ? ORDER BY e.created_at DESC`).all(userId),
@@ -175,6 +177,9 @@ export function createStore(db, cipher) {
     participants: (eventId) => q(`SELECT p.*, u.name, u.email FROM participants p JOIN users u ON u.id = p.user_id
       WHERE p.event_id = ? ORDER BY u.name COLLATE NOCASE`).all(eventId),
     removeParticipant: (id) => q('DELETE FROM participants WHERE id = ?').run(id),
+    setDrawMail: (id, state) => q('UPDATE participants SET draw_mail = ? WHERE id = ?').run(state, id),
+    /** The retry queue lives in memory, so after a restart "pending" means lost. */
+    failPendingDrawMails: () => q("UPDATE participants SET draw_mail = 'failed' WHERE draw_mail = 'pending'").run(),
 
     profile(participant) {
       if (!participant?.profile_enc) return {};
@@ -198,8 +203,16 @@ export function createStore(db, cipher) {
       return transaction(db, () => {
         const event = store.eventById(eventId);
         if (!event || event.status !== 'open') throw new Error('Losowanie już się odbyło');
+        if (!event.approved) throw new DrawError('Grupa czeka na zatwierdzenie przez administratora');
         const ids = store.participants(eventId).map((p) => p.id);
         const pairs = store.exclusions(eventId).map(({ a, b }) => [a, b]);
+        // Enough exclusions could leave one possible ring, and an organizer who takes part would know all of it.
+        const perPerson = new Map();
+        for (const id of pairs.flat()) perPerson.set(id, (perPerson.get(id) ?? 0) + 1);
+        const limit = ids.length >= 6 ? 2 : 1;
+        if ([...perPerson.values()].some((n) => n > limit)) {
+          throw new DrawError(`Za dużo wykluczeń: przy ${ids.length} osobach każda może mieć najwyżej ${limit}.`);
+        }
         const result = drawAssignments(ids, pairs);
         const insert = q('INSERT INTO assignments (event_id, giver_id, recipient_enc) VALUES (?, ?, ?)');
         // Insert in giver-id order so row order carries no information about the cycle.
@@ -215,6 +228,7 @@ export function createStore(db, cipher) {
         q('DELETE FROM messages WHERE event_id = ?').run(eventId);
         q('DELETE FROM assignments WHERE event_id = ?').run(eventId);
         q("UPDATE events SET status = 'open', drawn_at = NULL WHERE id = ?").run(eventId);
+        q("UPDATE participants SET draw_mail = '' WHERE event_id = ?").run(eventId);
       });
     },
     assignmentOf: (eventId, giverId) => q('SELECT * FROM assignments WHERE event_id = ? AND giver_id = ?').get(eventId, giverId),

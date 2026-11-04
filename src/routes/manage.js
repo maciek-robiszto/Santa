@@ -3,7 +3,7 @@ import * as v from '../validate.js';
 import { verifyPassword } from '../crypto.js';
 import { DrawError } from '../draw.js';
 import { manageIndex, manageEvent, adminReveal, adminResetLink } from '../views/manage.js';
-import { announceDraw } from '../notify.js';
+import { announceDraw, sendDrawMail } from '../notify.js';
 import { requireUser, notFound, tooMany, collectErrors, canManage, canCreateGroups } from './helpers.js';
 
 function parseEvent(body) {
@@ -73,13 +73,24 @@ export function manageRoutes({ store, config, mailer, limiter }) {
       errors.name = `Masz już ${config.maxGroupsPerUser} aktywnych grup – zakończ lub usuń którąś.`;
     }
     if (!ok || errors.name) return renderIndex(req, res, values, errors, 422);
-    const id = store.createEvent({ ...values, owner_user_id: req.user.id });
+    // Maile grupy idą z konta tej strony, więc grupa rusza dopiero po akceptacji superadmina.
+    const approved = Boolean(req.user.is_admin);
+    const id = store.createEvent({ ...values, owner_user_id: req.user.id, approved });
     store.audit({ eventId: id, actor: req.user, action: 'event.create', detail: values.name });
     if (values.join_self) {
       store.joinEvent(id, req.user.id);
       store.audit({ eventId: id, actor: req.user, action: 'participant.join', detail: req.user.name, isPublic: true });
     }
-    res.flash('ok', 'Grupa gotowa! Skopiuj link z zaproszeniem i wyślij znajomym.');
+    if (!approved) {
+      for (const admin of store.admins()) {
+        mailer.send({
+          to: admin.email,
+          subject: `${config.siteName}: nowa grupa czeka na zatwierdzenie`,
+          text: `Nowa grupa czeka na Twoją decyzję:\n${config.origin}/manage\n`,
+        });
+      }
+    }
+    res.flash('ok', approved ? 'Grupa gotowa! Skopiuj link z zaproszeniem i wyślij znajomym.' : 'Grupa utworzona. Link z zaproszeniem zadziała, gdy administrator ją zatwierdzi.');
     res.redirect(303, `/manage/events/${id}`);
   });
 
@@ -88,10 +99,49 @@ export function manageRoutes({ store, config, mailer, limiter }) {
   r.post('/events/:eventId', (req, res) => {
     const { errors, values, ok } = parseEvent(req.body);
     if (!ok) return renderEvent(req, res, { errors, values }, 422);
+    // A new deadline means a new reminder to everyone, so it cannot be repeated at will.
+    if (values.signup_deadline !== req.event.signup_deadline && !limiter.hit(`deadline:${req.event.id}`, 5, 24 * 3600_000)) return tooMany(res);
+    // After the draw this would let the organizer read who their Santa is.
+    if (req.event.status !== 'open') values.reveal_santas = Boolean(req.event.reveal_santas);
     store.updateEvent(req.event.id, values);
     store.audit({ eventId: req.event.id, actor: req.user, action: 'event.update', isPublic: true });
     res.flash('ok', 'Zapisano ustawienia.');
     res.redirect(303, `/manage/events/${req.event.id}`);
+  });
+
+  r.post('/events/:eventId/approve', (req, res) => {
+    if (!req.user.is_admin) return notFound(res);
+    if (!req.event.approved) {
+      store.approveEvent(req.event.id);
+      store.audit({ eventId: req.event.id, actor: req.user, action: 'event.approve' });
+      const owner = req.event.owner_user_id && store.userById(req.event.owner_user_id);
+      if (owner) {
+        mailer.send({
+          to: owner.email,
+          subject: `${config.siteName}: Twoja grupa jest zatwierdzona`,
+          text: `Cześć ${owner.name}!\n\nMożesz już wysłać znajomym link z zaproszeniem:\n${config.origin}/manage/events/${req.event.id}\n`,
+        });
+      }
+    }
+    res.flash('ok', `Zatwierdzono „${req.event.name}”.`);
+    res.redirect(303, '/manage');
+  });
+
+  r.post('/events/:eventId/reject', (req, res) => {
+    if (!req.user.is_admin) return notFound(res);
+    if (!req.event.approved) {
+      const owner = req.event.owner_user_id && store.userById(req.event.owner_user_id);
+      store.deleteEvent(req.event.id);
+      if (owner) {
+        mailer.send({
+          to: owner.email,
+          subject: `${config.siteName}: grupa nie została zatwierdzona`,
+          text: `Cześć ${owner.name}!\n\nAdministrator nie zatwierdził Twojej grupy i została usunięta. Jeśli to pomyłka, napisz do osoby prowadzącej tę stronę.\n`,
+        });
+      }
+      res.flash('ok', `Odrzucono i usunięto „${req.event.name}”.`);
+    }
+    res.redirect(303, '/manage');
   });
 
   r.post('/events/:eventId/invite', (req, res) => {
@@ -114,6 +164,22 @@ export function manageRoutes({ store, config, mailer, limiter }) {
     res.redirect(303, `/manage/events/${req.event.id}`);
   });
 
+  // Only triggers the mail to that person's own address: the organizer never sees its content.
+  r.post('/events/:eventId/participants/:pid/resend', (req, res) => {
+    const p = store.participantById(v.id(req.params.pid));
+    if (!p || p.event_id !== req.event.id) return notFound(res);
+    if (req.event.status !== 'drawn' || !mailer.enabled) {
+      res.flash('error', 'Mail można wysłać ponownie tylko po losowaniu.');
+    } else if (!limiter.hit(`resend:${p.id}`, 3, 60 * 60_000)) {
+      return tooMany(res);
+    } else {
+      sendDrawMail({ store, mailer, config }, req.event, p);
+      store.audit({ eventId: req.event.id, actor: req.user, action: 'draw.mail_resend', detail: p.name });
+      res.flash('ok', `Wysyłam mail do ${p.name} jeszcze raz.`);
+    }
+    res.redirect(303, `/manage/events/${req.event.id}`);
+  });
+
   r.post('/events/:eventId/exclusions', (req, res) => {
     const a = store.participantById(v.id(req.body.a));
     const b = store.participantById(v.id(req.body.b));
@@ -121,7 +187,7 @@ export function manageRoutes({ store, config, mailer, limiter }) {
       res.flash('error', 'Wybierz dwie różne osoby.');
     } else {
       store.addExclusion(req.event.id, a.id, b.id);
-      store.audit({ eventId: req.event.id, actor: req.user, action: 'exclusion.add', detail: `${a.name} ↔ ${b.name}` });
+      store.audit({ eventId: req.event.id, actor: req.user, action: 'exclusion.add', isPublic: true });
     }
     res.redirect(303, `/manage/events/${req.event.id}`);
   });
@@ -135,6 +201,8 @@ export function manageRoutes({ store, config, mailer, limiter }) {
   });
 
   r.post('/events/:eventId/draw', (req, res) => {
+    // Every draw mails everyone, and draw + cancel in a loop would also collect profiles.
+    if (!req.user.is_admin && !limiter.hit(`draw:${req.event.id}`, 5, 24 * 3600_000)) return tooMany(res);
     let count;
     try {
       count = store.runDraw(req.event.id);
@@ -156,8 +224,20 @@ export function manageRoutes({ store, config, mailer, limiter }) {
       res.flash('error', reason.error);
       return res.redirect(303, `/manage/events/${req.event.id}`);
     }
+    const wasDrawn = req.event.status !== 'open';
     store.resetDraw(req.event.id);
+    // Otherwise a passed deadline would redraw within a minute, before anything can be fixed.
+    store.setAutoDraw(req.event.id, false);
     store.audit({ eventId: req.event.id, actor: req.user, action: 'draw.reset', detail: reason.value, isPublic: true });
+    if (wasDrawn) {
+      for (const p of store.participants(req.event.id)) {
+        mailer.send({
+          to: p.email,
+          subject: `${config.siteName}: losowanie anulowane`,
+          text: `Cześć ${p.name}!\n\nOrganizator anulował losowanie, więc osoba z poprzedniego maila jest nieaktualna. Po nowym losowaniu dostaniesz nowego maila.\n${config.origin}/events/${req.event.id}\n`,
+        });
+      }
+    }
     res.flash('ok', 'Losowanie anulowane, zapisy znów otwarte.');
     res.redirect(303, `/manage/events/${req.event.id}`);
   });
@@ -213,8 +293,8 @@ export function manageRoutes({ store, config, mailer, limiter }) {
     if (!req.user.is_admin) return notFound(res);
     const user = store.userById(v.id(req.params.userId));
     if (!user) return notFound(res);
-    if (user.is_admin && user.id !== req.user.id) {
-      res.flash('error', 'Nie można generować linków resetu dla innych adminów.');
+    if (user.is_admin) {
+      res.flash('error', 'Nie można generować linków resetu dla adminów. Własne hasło zmienisz na stronie Konto.');
       return res.redirect(303, '/manage');
     }
     const token = store.createPasswordReset(user.id, 24);

@@ -25,6 +25,7 @@ before(async () => {
   await org.post('/login', { email: 'org@test.pl', password: PASSWORD });
   const r = await org.post('/manage/events', { name: 'Grupa' });
   eventId = Number(r.location.split('/').pop());
+  t.store.approveEvent(eventId);
   invite = t.store.eventById(eventId).invite_token;
 });
 after(() => t.close());
@@ -137,7 +138,9 @@ test('mails carry nothing typed by the requester', async () => {
   await c.post('/register', { name: 'Atakujacy', email: 'atakujacy@test.pl' });
   await c.post(`/link/${linkFrom(lastTo('atakujacy@test.pl'))}`, { name: 'Atakujacy', password: PASSWORD, consent: '1' });
   const g = await c.post('/manage/events', { name: 'KLIKNIJ evil.example' });
-  const inviteEvil = t.store.eventById(Number(g.location.split('/').pop())).invite_token;
+  const evil = Number(g.location.split('/').pop());
+  t.store.approveEvent(evil);
+  const inviteEvil = t.store.eventById(evil).invite_token;
   await t.client().post(`/join/${inviteEvil}`, { name: 'Kliknij https://evil.example/x', email: 'cel@test.pl' });
   const m = lastTo('cel@test.pl');
   assert.doesNotMatch(`${m.subject} ${m.text}`, /evil\.example|KLIKNIJ/i);
@@ -346,6 +349,7 @@ test('a reused participant id never shows someone from another group', async () 
   const owner = t.client();
   await t.registerByMail(owner, { name: 'Org2', email: 'org2@test.pl', password: PASSWORD });
   const g = Number((await owner.post('/manage/events', { name: 'Stara grupa', join_self: '1' })).location.split('/').pop());
+  t.store.approveEvent(g);
   const inv = t.store.eventById(g).invite_token;
   const members = {};
   for (const name of ['M1', 'M2']) {

@@ -19,7 +19,7 @@ export function deadlineEnd(isoDate) {
 }
 
 export function signupClosed(event, now = Date.now()) {
-  if (event.status !== 'open') return true;
+  if (event.status !== 'open' || event.approved === 0) return true;
   const end = deadlineEnd(event.signup_deadline);
   return end !== null && now >= end;
 }

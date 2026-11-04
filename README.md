@@ -5,6 +5,9 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 ## Funkcje
 
 - **Samoobsługowe grupy** – każdy zakłada konto, tworzy grupę (np. dla znajomych, pracy, hackerspace’u) i wysyła link z zaproszeniem. Organizator zarządza tylko swoimi grupami i może sam brać udział w losowaniu.
+- **Zatwierdzanie grup** – nowa grupa zaczyna działać dopiero po akceptacji superadmina (mail i lista w panelu), bo maile idą z konta tej strony. Do tego czasu link z zaproszeniem nie działa i nie można losować. Grupy superadmina są zatwierdzone od razu.
+- **Limit wykluczeń** – przy 6 lub więcej osobach każda może mieć najwyżej 2 wykluczenia, a przy mniejszych grupach 1. Większa liczba mogłaby zostawić tylko jeden możliwy krąg i zdradzić organizatorowi cały przydział.
+- **Dostarczenie maili** – panel pokazuje przy każdej osobie, czy mail po losowaniu został wysłany, a organizator może wysłać go ponownie (sam nie widzi treści). O nieudanej wysyłce dostaje też maila.
 - **Role** – *uczestnik*; *organizator* (twórca grupy: ustawienia, wykluczenia, losowanie, awaryjny podgląd jego grupy); *superadmin* strony (widzi listę wszystkich grup, może je usuwać, jako jedyny generuje linki resetu hasła). Utworzenie superadmina: `scripts/create-admin.js`.
 - **Zaproszenie linkiem, bez hasła** – organizator wysyła jeden link grupy. Uczestnik podaje imię i e-mail, potwierdza jednorazowym linkiem z maila i jest w grze. Hasło ma tylko organizator (i superadmin). Na innym urządzeniu uczestnik prosi o nowy link na stronie logowania. Bez skonfigurowanego SMTP zostaje formularz z hasłem.
 - **Profil makera** – o mnie, pasje i projekty, co by mnie ucieszyło, czego nie chcę, link do social mediów/portfolio.
@@ -45,8 +48,7 @@ Bezpieczna aplikacja webowa do losowania Secret Santa. Powstała dla społeczno�
 Wymagania: serwer z Dockerem (i `docker compose`), domena wskazująca na serwer.
 
 ```bash
-git clone https://github.com/maciek-robiszto/santa.git && cd santa
-git checkout claude/secret-santa-app     # do czasu scalenia z main
+git clone https://github.com/maciek-robiszto/Santa.git santa && cd santa
 bash deploy/install.sh
 ```
 

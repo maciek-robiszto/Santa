@@ -14,6 +14,7 @@ const app = createApp({ config, store, mailer });
 createScheduler({ config, store, mailer }).start();
 
 store.purgeExpired();
+store.failPendingDrawMails();
 setInterval(() => store.purgeExpired(), 60 * 60_000).unref();
 
 const server = app.listen(config.port, () => {

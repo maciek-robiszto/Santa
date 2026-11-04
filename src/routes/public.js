@@ -16,9 +16,14 @@ export function publicRoutes(ctx) {
 
   // Mails to an address someone typed. Only the sender is ever refused: a limit
   // per address alone would let a stranger lock its owner out.
-  const addressKey = (email) => email.replace(/\+[^@]*@/, '@');
+  const addressKey = (email) => {
+    const [local, domain] = email.replace(/\+[^@]*@/, '@').split('@');
+    return `${/^(gmail|googlemail)\.com$/.test(domain) ? local.replaceAll('.', '') : local}@${domain}`;
+  };
+  // The total protects the sending account: exhausting it would also stop the mails after a draw.
   const mailThrottled = (req, email) => !limiter.hit(`mail-ip:${req.ip}`, config.mailPerIpHour, HOUR)
-    || !limiter.hit(`mail-ip-email:${req.ip}:${addressKey(email)}`, 5, HOUR);
+    || !limiter.hit(`mail-ip-email:${req.ip}:${addressKey(email)}`, 5, HOUR)
+    || !limiter.hit('mail-all', config.mailPerHour, HOUR);
   /** Over the quota nothing is sent and earlier links stay valid; the response stays the same. */
   const addressQuotaLeft = (email) => limiter.hit(`mail-email:${addressKey(email)}`, 20, HOUR);
 
@@ -334,6 +339,7 @@ export function publicRoutes(ctx) {
   });
 
   r.post('/account/logout-all', requireUser, (req, res) => {
+    if (!limiter.hit(`logout-all:${req.user.id}`, 5, HOUR)) return tooMany(res);
     store.deleteOtherSessions(req.user.id, req.user.sid);
     mailer.send({
       to: req.user.email,

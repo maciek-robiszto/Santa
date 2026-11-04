@@ -22,9 +22,11 @@ function eventForm({ csrf, action, values = {}, errors = {}, submit, create = fa
   </form>`;
 }
 
+const DRAW_MAIL = { pending: '⏳ wysyłanie', sent: '✅ wysłany', failed: '❌ nie wysłano' };
+
 const groupList = (events, { owner = false } = {}) => events.length
   ? html`<ul class="list">${events.map((e) => html`<li>
-      <a href="/manage/events/${e.id}"><b>${e.name}</b></a> ${statusTag(e.status)}
+      <a href="/manage/events/${e.id}"><b>${e.name}</b></a> ${statusTag(e.status)}${e.approved ? '' : html` <span class="warn">czeka na zatwierdzenie</span>`}
       <span class="muted">${e.participant_count} os.${e.exchange_date ? html` · ${fmtDate(e.exchange_date)}` : ''}${owner ? html` · org. ${e.owner_name ?? '—'}` : ''}</span>
     </li>`)}</ul>`
   : html`<p class="muted">Nie masz jeszcze żadnej grupy.</p>`;
@@ -34,7 +36,7 @@ export function manageIndex({ csrf, mine, all, canCreate, values, errors }) {
   <p class="kicker">Dla organizatorów</p>
   <h1>Zorganizuj mikołajki</h1>
   <p class="lead">Załóż grupę dla znajomych, ekipy z pracy czy hackerspace’u, wyślij im link i gotowe.
-  Losowanie, przypomnienia i maile zrobią się same. Ty też nie zobaczysz, kto kogo wylosował.</p>
+  Losowanie, przypomnienia i maile zrobią się same. Nie widzisz, kto kogo wylosował, poza awaryjnym podglądem, o którym dowiedzą się wszyscy.</p>
   <div class="grid-2">
     <section class="card">
       <h2>Twoje grupy</h2>
@@ -45,6 +47,17 @@ export function manageIndex({ csrf, mine, all, canCreate, values, errors }) {
       ${eventForm({ csrf, action: '/manage/events', values, errors, submit: 'Utwórz grupę', create: true })}
     </section>` : ''}
   </div>
+  ${all?.some((e) => !e.approved) ? html`<section class="card card-accent">
+    <h2>Czekają na zatwierdzenie</h2>
+    <ul class="list">${all.filter((e) => !e.approved).map((e) => html`<li>
+      <a href="/manage/events/${e.id}"><b>${e.name}</b></a>
+      <span class="muted">org. ${e.owner_name ?? '—'} (${e.owner_email ?? '—'})</span>
+      <div class="actions">
+        <form method="post" action="/manage/events/${e.id}/approve" class="inline">${csrfField(csrf)}<button class="btn btn-small btn-primary">Zatwierdź</button></form>
+        <form method="post" action="/manage/events/${e.id}/reject" class="inline" data-confirm="Odrzucić i usunąć tę grupę?">${csrfField(csrf)}<button class="btn btn-small btn-danger">Odrzuć</button></form>
+      </div>
+    </li>`)}</ul>
+  </section>` : ''}
   ${all ? html`<section class="card">
     <h2>Wszystkie grupy na stronie (superadmin)</h2>
     ${groupList(all, { owner: true })}
@@ -55,11 +68,17 @@ export function manageEvent({ csrf, event, inviteUrl, participants, exclusions, 
   const byId = new Map(participants.map((p) => [p.id, p]));
   const incomplete = participants.filter((p) => !p.profile_complete).length;
   const open = event.status === 'open';
+  const showMail = !open && mailEnabled;
+  const failedMails = showMail ? participants.filter((p) => p.draw_mail === 'failed').length : 0;
   return html`
   <p><a href="/manage">← Twoje grupy</a></p>
+  ${failedMails ? html`<p class="flash flash-error">⚠️ Mail po losowaniu nie dotarł do ${failedMails} os. Użyj „Wyślij ponownie” na liście uczestników.</p>` : ''}
   <div class="page-head"><h1>${event.name}</h1>${statusTag(event.status)}</div>
 
-  <section class="card card-accent">
+  ${!event.approved ? html`<section class="card card-accent">
+    <h2>⏳ Czeka na zatwierdzenie</h2>
+    <p>Administrator strony musi zatwierdzić tę grupę. Wtedy dostaniesz maila, a tu pojawi się link z zaproszeniem. Do tego czasu nikt nie dołączy i nie można losować.</p>
+  </section>` : html`<section class="card card-accent">
     <h2>🔗 Link z zaproszeniem</h2>
     <div class="copy">
       <input id="invite" readonly value="${inviteUrl}" aria-label="Link z zaproszeniem">
@@ -68,7 +87,7 @@ export function manageEvent({ csrf, event, inviteUrl, participants, exclusions, 
     <form method="post" action="/manage/events/${event.id}/invite" data-confirm="Stary link przestanie działać. Kontynuować?">
       ${csrfField(csrf)}<button class="btn btn-ghost btn-small">Wygeneruj nowy link</button>
     </form>
-  </section>
+  </section>`}
 
   <section class="card">
     <h2>🎲 Losowanie</h2>
@@ -80,7 +99,7 @@ export function manageEvent({ csrf, event, inviteUrl, participants, exclusions, 
       ${mailEnabled ? '' : html`<p class="warn">E-maile są wyłączone (brak SMTP) – daj znać uczestnikom samodzielnie, że mogą zajrzeć na stronę.</p>`}
       <p class="muted">Po losowaniu zapisy zostają zamknięte. Wynik jest szyfrowany – nikt nie zobaczy pełnej listy par.</p>
       <form method="post" action="/manage/events/${event.id}/draw" data-confirm="Rozpocząć losowanie dla ${participants.length} osób?">
-        ${csrfField(csrf)}<button class="btn btn-primary" ${participants.length < 3 ? html`disabled` : ''}>Losuj!</button>
+        ${csrfField(csrf)}<button class="btn btn-primary" ${participants.length < 3 || !event.approved ? html`disabled` : ''}>Losuj!</button>
       </form>`
     : html`
       <p>Losowanie: <b>${fmtDateTime(event.drawn_at)}</b></p>
@@ -105,12 +124,15 @@ export function manageEvent({ csrf, event, inviteUrl, participants, exclusions, 
   <section class="card">
     <h2>👥 Uczestnicy (${participants.length})</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>Imię</th><th>E-mail</th><th>Profil</th><th>Dołączył(a)</th><th><span class="sr-only">Akcje</span></th></tr></thead>
+      <thead><tr><th>Imię</th><th>E-mail</th><th>Profil</th><th>Dołączył(a)</th>${showMail ? html`<th>Mail po losowaniu</th>` : ''}<th><span class="sr-only">Akcje</span></th></tr></thead>
       <tbody>${participants.map((p) => html`<tr>
         <td>${p.name}</td><td>${p.email}</td>
         <td>${p.profile_complete ? '✅' : '—'}</td>
         <td>${fmtDateTime(p.joined_at)}</td>
+        ${showMail ? html`<td>${DRAW_MAIL[p.draw_mail] ?? '—'}</td>` : ''}
         <td class="actions">
+          ${showMail && event.status === 'drawn' ? html`<form method="post" action="/manage/events/${event.id}/participants/${p.id}/resend" class="inline" data-confirm="Wysłać mail do ${p.name} jeszcze raz?">
+            ${csrfField(csrf)}<button class="btn btn-small ${p.draw_mail === 'failed' ? 'btn-primary' : 'btn-ghost'}">Wyślij ponownie</button></form>` : ''}
           ${viewer?.is_admin ? html`<form method="post" action="/manage/users/${p.user_id}/reset-link" class="inline">
             ${csrfField(csrf)}<input type="hidden" name="event_id" value="${event.id}">
             <button class="btn btn-small btn-ghost" title="Jednorazowy link do ustawienia hasła">Reset hasła</button></form>` : ''}

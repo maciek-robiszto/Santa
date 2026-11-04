@@ -10,7 +10,7 @@ import { createApp } from '../src/app.js';
 
 export async function startTestApp() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'santa-test-'));
-  const config = loadConfig({ DATA_DIR: dir, ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), APP_URL: 'http://localhost:0', MAIL_PER_IP_HOUR: '10000' });
+  const config = loadConfig({ DATA_DIR: dir, ENCRYPTION_KEY: crypto.randomBytes(32).toString('base64'), APP_URL: 'http://localhost:0', MAIL_PER_IP_HOUR: '10000', MAIL_PER_HOUR: '10000' });
   const store = createStore(openDb(config.dbFile), createCipher(config.encryptionKey));
   const sent = [];
   const mailer = { enabled: true, send: async (m) => { sent.push(m); } };

@@ -15,6 +15,8 @@ export const AUDIT_LABELS = {
   'participant.remove': 'Organizator usunął uczestnika',
   'exclusion.add': 'Dodano wykluczenie',
   'exclusion.remove': 'Usunięto wykluczenie',
+  'event.approve': 'Administrator strony zatwierdził grupę',
+  'draw.mail_resend': 'Ponownie wysłano mail po losowaniu',
   'draw.run': 'Przeprowadzono losowanie',
   'draw.reset': 'Losowanie zostało anulowane',
   'draw.auto': 'Automatyczne losowanie po terminie zapisów',
@@ -163,7 +165,7 @@ export function joinPage({ csrf, event, user, mailEnabled = false, values = {}, 
       ${eventMeta(event)}
     </div>
     <div class="card">
-      ${closed ? html`<h2>Zapisy zamknięte</h2><p>${event.status === 'open' ? 'Termin zapisów minął.' : 'Losowanie już się odbyło.'} Jeśli to pomyłka, odezwij się do organizatora.</p>`
+      ${closed ? html`<h2>Zapisy zamknięte</h2><p>${!event.approved ? 'Grupa czeka na zatwierdzenie przez administratora.' : event.status === 'open' ? 'Termin zapisów minął.' : 'Losowanie już się odbyło.'} Jeśli to pomyłka, odezwij się do organizatora.</p>`
       : user ? html`
         <h2>Dołączasz jako ${user.name}</h2>
         <form method="post" action="/join/${event.invite_token}">${csrfField(csrf)}

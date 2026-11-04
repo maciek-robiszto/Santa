@@ -19,25 +19,28 @@ export function createMailer(config, { transport, retryDelays = RETRY_DELAYS_MS 
       enabled: false,
       async send({ to, subject }) {
         if (!config.isProd) console.info(`[mail] (SMTP wyłączony) do=${to} temat="${subject}"`);
+        return false;
       },
     };
   }
   const smtp = transport ?? nodemailer.createTransport(pooled(config.smtpUrl));
   return {
     enabled: true,
-    async send({ to, subject, text }) {
+    /** Resolves to true/false, or null when `stillValid` says this mail is no longer wanted. */
+    async send({ to, subject, text, stillValid }) {
       for (let attempt = 0; ; attempt++) {
+        if (stillValid && !stillValid()) return null;
         try {
           const info = await smtp.sendMail({ from: config.mailFrom || config.siteName, to, subject, text });
           // No addresses or subjects: only whether the server accepted the message.
           console.info(`[mail] przyjęte przez serwer: ${info.accepted.length}, odrzucone: ${info.rejected.length}`);
-          return;
+          return info.rejected.length === 0;
         } catch (err) {
           const code = err.responseCode ?? err.code ?? 'nieznany';
           if (!isTransient(err) || attempt >= retryDelays.length) {
             // Never log the message body: it may contain links with tokens.
             console.error('[mail] błąd wysyłki:', code);
-            return;
+            return false;
           }
           console.info(`[mail] ponawiam (kod ${code}, próba ${attempt + 2})`);
           await sleep(retryDelays[attempt]);

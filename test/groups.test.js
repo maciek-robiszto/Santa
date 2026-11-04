@@ -24,6 +24,7 @@ test('anyone can register and create a group (joining it too)', async () => {
   groupId = Number(c.location.split('/').pop());
   const ev = t.store.eventById(groupId);
   invite = ev.invite_token;
+  assert.equal((await superadmin.post(`/manage/events/${groupId}/approve`, {})).status, 303);
   assert.equal(ev.owner_user_id, t.store.userByEmail('kasia@test.pl').id);
   assert.ok(t.store.participantFor(groupId, ev.owner_user_id), 'organizer participates');
 });

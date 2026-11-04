@@ -105,6 +105,10 @@ const MIGRATIONS = [
      expires_at INTEGER NOT NULL
    );
    CREATE INDEX login_links_email ON login_links(email);`,
+  // v6: new groups wait for the superadmin (existing ones stay approved);
+  // delivery state of the mail sent after the draw.
+  `ALTER TABLE events ADD COLUMN approved INTEGER NOT NULL DEFAULT 1;
+   ALTER TABLE participants ADD COLUMN draw_mail TEXT NOT NULL DEFAULT '';`,
 ];
 
 export function openDb(file) {

@@ -111,3 +111,16 @@ test('mail: temporary errors are retried, permanent ones are not, nothing privat
   assert.equal(exhausted.calls, 3);
   assert.match(exhausted.logs, /błąd wysyłki: 421/);
 });
+
+test('mail: a mail no longer wanted is dropped before any attempt', async () => {
+  let calls = 0;
+  let valid = true;
+  const transport = { sendMail: async () => { calls++; if (calls === 1) { valid = false; throw Object.assign(new Error('x'), { responseCode: 421 }); } return { accepted: ['a'], rejected: [] }; } };
+  const { info } = console;
+  console.info = () => {};
+  try {
+    const r = await createMailer({ siteName: 'S' }, { transport, retryDelays: [0, 0] }).send({ to: 'a@test.pl', subject: 's', text: 't', stillValid: () => valid });
+    assert.equal(r, null);
+    assert.equal(calls, 1);
+  } finally { console.info = info; }
+});
