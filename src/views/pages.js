@@ -36,20 +36,19 @@ export function homeAnon() {
     <div>
       <p class="kicker">Edycja świąteczna</p>
       <h1>Makerskie Mikołajki</h1>
-      <p class="lead">Losujesz osobę, <b>robisz</b> dla niej prezent (albo wyszukujesz coś z sercem), wręczasz. Proste.
-      Bez arkuszy, bez „ups, wylosowałem siebie” i bez podglądania.</p>
+      <p class="lead">Losujesz osobę, <b>robisz</b> dla niej prezent wręczasz i dobrze się bawisz.</p>
       <p class="actions">
         <a class="btn btn-primary" href="/register?next=/manage">Załóż grupę</a>
         <a class="btn" href="/login">Zaloguj się</a>
       </p>
-      <p class="hint">Masz link z zaproszeniem? Otwórz go, żeby dołączyć. Chcesz zorganizować mikołajki dla swoich znajomych? Załóż grupę – to nic nie kosztuje.</p>
+      <p class="hint">Masz link z zaproszeniem? Otwórz go, żeby dołączyć. Chcesz zorganizować mikołajki dla swoich znajomych? Załóż grupę !</p>
     </div>
     <div class="dotted">
       <ol class="steps">
         <li><b>Załóż grupę</b> albo dołącz przez link od znajomych.</li>
         <li><b>Opisz się</b> – pasje, projekty, co lubisz, czego nie.</li>
-        <li><b>Losowanie</b> – automatyczne, szyfrowane, bez par „na krzyż”.</li>
-        <li><b>Działaj</b> – zobacz profil swojej osoby i pytaj ją anonimowo.</li>
+        <li><b>Losowanie</b></li>
+        <li><b>Działaj</b> – zobacz profil swojej osoby</li>
       </ol>
     </div>
   </section>`;
