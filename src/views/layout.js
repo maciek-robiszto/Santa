@@ -61,7 +61,6 @@ export function layout({ title, body, user, csrf, flash, siteName, wide = false,
 </main>
 <footer class="site-footer">
   <div class="wrap">
-    <span>🔒 Pary są szyfrowane. Nikt – także organizator – nie widzi listy „kto komu”.</span>
     <span>Zrobione z 🧡 przez makerów, dla makerów.</span>
   </div>
 </footer>

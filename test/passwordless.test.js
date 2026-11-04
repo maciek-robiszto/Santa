@@ -171,7 +171,8 @@ test('accounts with a password never get a link that skips the password', async 
   await requestJoin(attacker, 'Haker', 'org@test.pl');
   assert.equal(linkFrom(t.sent[0]), undefined);
   await attacker.post('/login/link', { email: 'org@test.pl' });
-  assert.equal(t.sent.length, 1, 'no login link for an account with a password');
+  assert.equal(t.sent.length, 2, 'the owner is told how to log in');
+  assert.equal(linkFrom(t.sent[1]), undefined, 'no login link for an account with a password');
   assert.equal((await attacker.get('/manage')).status, 303);
 });
 
@@ -199,7 +200,7 @@ test('returning: login link works for participants, the same answer for everyone
   const unknown = await t.client().post('/login/link', { email: 'nikt-taki@test.pl' });
   assert.equal(t.sent.length, 1);
   assert.equal(known.status, unknown.status);
-  assert.match(unknown.text, /jednorazowy link/);
+  assert.match(unknown.text, /wysłaliśmy na niego wiadomość/);
   const r = await c.post(`/link/${linkFrom(t.sent[0])}`, {});
   assert.equal(r.location, '/');
   assert.equal((await c.get(eventPage())).status, 200);
@@ -336,7 +337,7 @@ test('create-admin gives a promoted participant a password, so a link cannot ope
   assert.equal((await c.get('/account')).status, 303, 'old sessions are dropped');
   t.sent.length = 0;
   await t.client().post('/login/link', { email: 'hania@test.pl' });
-  assert.equal(t.sent.length, 0);
+  assert.equal(linkFrom(t.sent[0]), undefined);
 });
 
 // ---------- pozostałe ----------

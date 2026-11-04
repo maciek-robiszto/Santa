@@ -58,7 +58,7 @@ export function homeAnon() {
 export function loginPage({ csrf, email = '', error, next = '/', mailEnabled = false, linkSent = false }) {
   return html`${mailEnabled ? html`<section class="card narrow">
     <h1>Zaloguj się</h1>
-    ${linkSent ? html`<p class="flash flash-ok">Jeśli uczestniczysz bez hasła, wysłaliśmy na ten adres jednorazowy link (ważny 30 minut).</p>` : ''}
+    ${linkSent ? html`<p class="flash flash-ok">Jeśli ten adres jest u nas, wysłaliśmy na niego wiadomość. Sprawdź też spam.</p>` : ''}
     <p>Bierzesz udział w grupie? Hasło nie jest potrzebne. Podaj e-mail z zapisów, a wyślemy Ci link do logowania.</p>
     <form method="post" action="/login/link">
       ${csrfField(csrf)}

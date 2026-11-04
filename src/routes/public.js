@@ -53,19 +53,27 @@ export function publicRoutes(ctx) {
   });
 
   // Same answer whether or not the address is known. Accounts with a password
-  // never get a link: e-mail access alone must not skip their password.
+  // get a reminder instead of a link: e-mail access alone must not skip their password.
   r.post('/login/link', (req, res) => {
     if (!mailer.enabled) return notFound(res);
     const email = String(req.body.email ?? '').trim().toLowerCase().slice(0, 200);
     if (mailThrottled(req, email)) return tooMany(res);
     const user = store.userByEmail(email);
-    if (user && !user.password_hash && !user.is_admin && addressQuotaLeft(email)) {
-      const token = store.createLoginLink({ email: user.email, hours: LOGIN_LINK_HOURS });
-      mailer.send({
-        to: user.email,
-        subject: `${config.siteName}: link do logowania`,
-        text: `Cześć ${user.name}!\n\nOtwórz link, żeby się zalogować (jednorazowy, ważny 30 minut):\n${config.origin}/link/${token}\n\nJeśli to nie Ty – zignoruj tę wiadomość.`,
-      });
+    if (user && addressQuotaLeft(email)) {
+      if (user.password_hash || user.is_admin) {
+        mailer.send({
+          to: user.email,
+          subject: `${config.siteName}: to konto ma hasło`,
+          text: `Cześć ${user.name}!\n\nKtoś poprosił o link do logowania, ale to konto loguje się hasłem:\n${config.origin}/login\n\nNie pamiętasz hasła? Ustaw nowe: ${config.origin}/forgot\n\nJeśli to nie Ty – zignoruj tę wiadomość.`,
+        });
+      } else {
+        const token = store.createLoginLink({ email: user.email, hours: LOGIN_LINK_HOURS });
+        mailer.send({
+          to: user.email,
+          subject: `${config.siteName}: link do logowania`,
+          text: `Cześć ${user.name}!\n\nOtwórz link, żeby się zalogować (jednorazowy, ważny 30 minut):\n${config.origin}/link/${token}\n\nJeśli to nie Ty – zignoruj tę wiadomość.`,
+        });
+      }
     }
     res.page('Logowanie', loginPage({ csrf: res.locals.csrf, mailEnabled: true, linkSent: true }));
   });
